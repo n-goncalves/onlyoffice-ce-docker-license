@@ -1,9 +1,9 @@
 diff --git a/Common/sources/constants.js b/Common/sources/constants.js
-index 0663ead..490582a 100644
+index 65d4c6f..39a7e56 100644
 --- a/Common/sources/constants.js
 +++ b/Common/sources/constants.js
-@@ -75,7 +75,7 @@ exports.LICENSE_RESULT = {
-   ExpiredLimited: 11
+@@ -83,7 +83,7 @@ exports.LICENSE_RESULT = {
+   UsersViewCountOS: 15
  };
  
 -exports.LICENSE_CONNECTIONS = 20;
@@ -12,10 +12,10 @@ index 0663ead..490582a 100644
  
  exports.AVS_OFFICESTUDIO_FILE_UNKNOWN =  0x0000;
 diff --git a/Common/sources/license.js b/Common/sources/license.js
-index c273afe..8786f62 100644
+index 1b617c6..4f5d25f 100644
 --- a/Common/sources/license.js
 +++ b/Common/sources/license.js
-@@ -45,20 +45,20 @@ exports.readLicense = function*() {
+@@ -45,23 +45,23 @@ exports.readLicense = function*() {
  		count: 1,
  		type: c_LR.Success,
  		light: false,
@@ -25,10 +25,15 @@ index c273afe..8786f62 100644
 -		branding: false,
 +		branding: true,
  		connections: constants.LICENSE_CONNECTIONS,
+ 		connectionsView: constants.LICENSE_CONNECTIONS,
 -		customization: false,
+-		advancedApi: false,
 -		usersCount: 0,
+-		usersViewCount: 0,
 +		customization: true,
++		advancedApi: true,
 +		usersCount: constants.LICENSE_CONNECTIONS,
++		usersViewCount: constants.LICENSE_CONNECTIONS,
  		usersExpire: constants.LICENSE_EXPIRE_USERS_ONE_DAY,
 -		hasLicense: false,
 -		plugins: false,
@@ -37,60 +42,52 @@ index c273afe..8786f62 100644
  		buildDate: oBuildDate,
  		startDate: startDate,
 -		endDate: null,
--		customerId: ""
-+		customerId: "",
-+		endDate: new Date("2099-01-01T23:59:59.000Z")
++		endDate: new Date("2099-01-01T23:59:59.000Z"),
+ 		customerId: "",
+-		alias: ""
++		alias: "community"
  	}, null];
  };
  
--exports.packageType = constants.PACKAGE_TYPE_OS;
-+exports.packageType = constants.PACKAGE_TYPE_I;
-diff --git a/DocService/sources/DocsCoServer.js b/DocService/sources/DocsCoServer.js
-index b654c9c..31bdf2d 100644
---- a/DocService/sources/DocsCoServer.js
-+++ b/DocService/sources/DocsCoServer.js
-@@ -165,7 +165,7 @@ let connections = []; // Активные соединения
- let lockDocumentsTimerId = {};//to drop connection that can't unlockDocument
- let pubsub;
- let queue;
--let licenseInfo = {type: constants.LICENSE_RESULT.Error, light: false, branding: false, customization: false, plugins: false};
-+let licenseInfo = license.readLicense().next().value[0];
- let licenseOriginal = null;
- let shutdownFlag = false;
- let expDocumentsStep = gc.getCronStep(cfgExpDocumentsCron);
-@@ -3324,7 +3324,7 @@ exports.install = function(server, callbackFunction) {
-   });
- };
- exports.setLicenseInfo = function(data, original ) {
--  licenseInfo = data;
-+  logger.debug('Not updating license info', data);
-   licenseOriginal = original;
- };
- exports.getLicenseInfo = function() {
+diff --git a/Common/sources/tenantManager.js b/Common/sources/tenantManager.js
+index 66dbb96..3fc932b 100644
+--- a/Common/sources/tenantManager.js
++++ b/Common/sources/tenantManager.js
+@@ -140,6 +140,10 @@ function getTenantLicense(ctx) {
+         ctx.logger.error('getTenantLicense error: missing "alias" field');
+       }
+     } else {
++      // This might need to be changed
++      // xbeeant chose to always return a static object, it might break in multitenant mode ?
++      // Maybe you can use the generation to retrieve the one defined in license.js [res] = yield* license.readLicense(licensePath);
++      // Or it might work just like that.
+       res = licenseInfo;
+     }
+     return res;
 diff --git a/DocService/sources/server.js b/DocService/sources/server.js
-index ccc232b..7c4e80d 100644
+index 5c744f6..edfb423 100644
 --- a/DocService/sources/server.js
 +++ b/DocService/sources/server.js
-@@ -147,7 +147,6 @@ try {
- } catch (e) {
- 	logger.warn('Failed to subscribe to plugin folder updates. When changing the list of plugins, you must restart the server. https://nodejs.org/docs/latest/api/fs.html#fs_availability');
- }
--fs.watchFile(configCommon.get('license').get('license_file'), updateLicense);
- setInterval(updateLicense, 86400000);
+@@ -110,7 +110,6 @@ if (!(cfgTokenEnableBrowser && cfgTokenEnableRequestInbox && cfgTokenEnableReque
  
- // Если захочется использовать 'development' и 'production',
+ if (!tenantManager.isMultitenantMode()) {
+ 	updateLicense();
+-	fs.watchFile(cfgLicenseFile, updateLicense);
+ 	setInterval(updateLicense, 86400000);
+ }
+ 
 diff --git a/FileConverter/sources/convertermaster.js b/FileConverter/sources/convertermaster.js
-index 2c4526f..ec07464 100644
+index 2a0b366..96468f9 100644
 --- a/FileConverter/sources/convertermaster.js
 +++ b/FileConverter/sources/convertermaster.js
-@@ -85,7 +85,6 @@ if (cluster.isMaster) {
- 
+@@ -93,7 +93,6 @@ if (cluster.isMaster) {
    updateLicense();
  
--  fs.watchFile(configCommon.get('license').get('license_file'), updateLicense);
-   setInterval(updateLicense, 86400000);
+   if (!tenantManager.isMultitenantMode()) {
+-    fs.watchFile(cfgLicenseFile, updateLicense);
+     setInterval(updateLicense, 86400000);
+   }
  } else {
-   const converter = require('./converter');
 diff --git a/Makefile b/Makefile
 index e8e1308..23f7e2e 100644
 --- a/Makefile
