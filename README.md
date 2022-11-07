@@ -43,6 +43,12 @@ In my opinion these deceptive practices of advertising a feature only to take
 it away are unacceptable for a company presenting itself and their products as
 open source.
 
+## Updating the image
+
+Resources to update the image:
+* Dockerhub office documentserver image: https://hub.docker.com/r/onlyoffice/documentserver/tags
+* Build process of the documentserver: https://github.com/ONLYOFFICE/build_tools/blob/master/scripts/build_server.py
+
 
 ## Usage
 

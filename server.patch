@@ -58,7 +58,7 @@ index b654c9c..31bdf2d 100644
  let licenseOriginal = null;
  let shutdownFlag = false;
  let expDocumentsStep = gc.getCronStep(cfgExpDocumentsCron);
-@@ -3328,7 +3328,7 @@ exports.install = function(server, callbackFunction) {
+@@ -3324,7 +3324,7 @@ exports.install = function(server, callbackFunction) {
    });
  };
  exports.setLicenseInfo = function(data, original ) {
