@@ -1,0 +1,1274 @@
+From bf3dfd3e6604355078c9384f9c3965fbbf73fe8f Mon Sep 17 00:00:00 2001
+From: Nelson DINIS GONCALVES <ndinisgoncalves@grandlyon.com>
+Date: Fri, 26 Aug 2022 15:49:12 +0200
+Subject: [PATCH 1/4] "Picture from storage" for mobile editors
+
+---
+ .../mobile/app/controller/add/AddImage.js     | 55 +++++++++++++++++++
+ .../mobile/app/template/AddImage.template     | 12 ++++
+ .../mobile/app/view/add/AddImage.js           |  3 +-
+ apps/documenteditor/mobile/locale/en.json     |  1 +
+ apps/documenteditor/mobile/locale/fr.json     |  1 +
+ .../mobile/resources/css/app-material.css     |  5 ++
+ .../mobile/app/controller/add/AddImage.js     | 55 +++++++++++++++++++
+ .../mobile/app/template/AddImage.template     | 12 ++++
+ .../mobile/app/view/add/AddImage.js           |  3 +-
+ apps/presentationeditor/mobile/locale/en.json |  2 +
+ apps/presentationeditor/mobile/locale/fr.json |  1 +
+ .../mobile/resources/css/app-material.css     |  4 ++
+ .../mobile/app/controller/add/AddOther.js     | 54 ++++++++++++++++++
+ .../mobile/app/template/AddOther.template     | 12 ++++
+ .../mobile/app/view/add/AddOther.js           |  3 +-
+ apps/spreadsheeteditor/mobile/locale/en.json  |  1 +
+ apps/spreadsheeteditor/mobile/locale/fr.json  |  1 +
+ .../mobile/resources/css/app-material.css     |  5 ++
+ 18 files changed, 227 insertions(+), 3 deletions(-)
+
+diff --git a/apps/documenteditor/mobile/app/controller/add/AddImage.js b/apps/documenteditor/mobile/app/controller/add/AddImage.js
+index 16ab145..5a74c2a 100644
+--- a/apps/documenteditor/mobile/app/controller/add/AddImage.js
++++ b/apps/documenteditor/mobile/app/controller/add/AddImage.js
+@@ -63,6 +63,10 @@ define([
+             initialize: function () {
+                 Common.NotificationCenter.on('addcontainer:show', _.bind(this.initEvents, this));
+ 
++                Common.NotificationCenter.on('storage:image-load', _.bind(this.openImageFromStorage, this));
++                Common.NotificationCenter.on('storage:image-insert', _.bind(this.insertImageFromStorage, this));
++                Common.Gateway.on('insertimage',                            _.bind(this.insertImage, this));
++
+                 this.addListeners({
+                     'AddImage': {
+                         'page:show' : this.onPageShow
+@@ -81,6 +85,57 @@ define([
+             initEvents: function () {
+                 var me = this;
+                 $('#add-image-file').single('click', _.bind(me.onInsertByFile, me));
++
++                var canRequestInsertImage = true; //TODO Get the appOptions
++                if(canRequestInsertImage) {
++                    $('#add-image-storage').single('click', _.bind(me.onInsertFromStorage, me));
++                } else {
++                    $('#add-image-storage').hide();
++                }
++
++            },
++
++            // Called when clicking on Picture From Storage button
++            onInsertFromStorage: function(e) {
++                // console.log("onInsertFromStorage", e);
++                Common.NotificationCenter.trigger('storage:image-load', 'add');
++            },
++
++            // Send event to the Gateway so the parent can call the
++            // function set in the config
++            openImageFromStorage: function(type) {
++                var me = this;
++
++                // console.log("openImageFromStorage", type);
++                var canRequestInsertImage = true;
++                if (canRequestInsertImage) {
++                    Common.Gateway.requestInsertImage(type);
++                }
++            },
++
++            // Receives the file(s) selected and insert them in the document
++            insertImageFromStorage: function(data) {
++                // console.log("insertImageFromStorage", data);
++                DE.getController('AddContainer').hideModal();
++                if (data && data._urls && (!data.c || data.c=='add')) {
++                    (data._urls.length>0) && this.api.AddImageUrl(data._urls, undefined, data.token);// for loading from storage
++                }
++            },
++
++            insertImage: function(data) { // gateway
++                if (data && (data.url || data.images)) {
++                    data.url && console.log("Obsolete: The 'url' parameter of the 'insertImage' method is deprecated. Please use 'images' parameter instead.");
++
++                    var arr = [];
++                    if (data.images && data.images.length>0) {
++                        for (var i=0; i<data.images.length; i++) {
++                            data.images[i] && data.images[i].url && arr.push( data.images[i].url);
++                        }
++                    } else
++                        data.url && arr.push(data.url);
++                    data._urls = arr;
++                }
++                Common.NotificationCenter.trigger('storage:image-insert', data);
+             },
+ 
+             onPageShow: function () {
+diff --git a/apps/documenteditor/mobile/app/template/AddImage.template b/apps/documenteditor/mobile/app/template/AddImage.template
+index f5bbcb0..23c3a05 100644
+--- a/apps/documenteditor/mobile/app/template/AddImage.template
++++ b/apps/documenteditor/mobile/app/template/AddImage.template
+@@ -26,6 +26,18 @@
+                     </div>
+                 </a>
+             </li>
++            <li>
++                <a id="add-image-storage" class="item-link no-indicator no-fastclick">
++                    <div class="item-content">
++                        <div class="item-media">
++                            <i class="icon icon-image-storage"></i>
++                        </div>
++                        <div class="item-inner">
++                            <div class="item-title"><%= scope.textFromStorage %></div>
++                        </div>
++                    </div>
++                </a>
++            </li>
+         </ul>
+     </div>
+ </div>
+diff --git a/apps/documenteditor/mobile/app/view/add/AddImage.js b/apps/documenteditor/mobile/app/view/add/AddImage.js
+index 80da59c..c54bb09 100644
+--- a/apps/documenteditor/mobile/app/view/add/AddImage.js
++++ b/apps/documenteditor/mobile/app/view/add/AddImage.js
+@@ -122,7 +122,8 @@ define([
+ 
+             textFromLibrary: 'Picture from Library',
+             textFromURL: 'Picture from URL',
+-            textBack: 'Back', 
++            textFromStorage: 'Picture from Storage',
++            textBack: 'Back',
+             textLinkSettings: 'Link Settings',
+             textAddress: 'Address',
+             textImageURL: 'Image URL',
+diff --git a/apps/documenteditor/mobile/locale/en.json b/apps/documenteditor/mobile/locale/en.json
+index 1502c85..f2fef1a 100644
+--- a/apps/documenteditor/mobile/locale/en.json
++++ b/apps/documenteditor/mobile/locale/en.json
+@@ -324,6 +324,7 @@
+   "DE.Views.AddImage.textBack": "Back",
+   "DE.Views.AddImage.textFromLibrary": "Picture from Library",
+   "DE.Views.AddImage.textFromURL": "Picture from URL",
++  "DE.Views.AddImage.textFromStorage": "Picture from Storage",
+   "DE.Views.AddImage.textImageURL": "Image URL",
+   "DE.Views.AddImage.textInsertImage": "Insert Image",
+   "DE.Views.AddImage.textLinkSettings": "Link Settings",
+diff --git a/apps/documenteditor/mobile/locale/fr.json b/apps/documenteditor/mobile/locale/fr.json
+index fcb1e83..1b23c8a 100644
+--- a/apps/documenteditor/mobile/locale/fr.json
++++ b/apps/documenteditor/mobile/locale/fr.json
+@@ -324,6 +324,7 @@
+   "DE.Views.AddImage.textBack": "Retour",
+   "DE.Views.AddImage.textFromLibrary": "Image de la bibliothèque",
+   "DE.Views.AddImage.textFromURL": "Image à partir d'une URL",
++  "DE.Views.AddImage.textFromStorage": "Picture from Storage",
+   "DE.Views.AddImage.textImageURL": "URL d'une image",
+   "DE.Views.AddImage.textInsertImage": "Insérer une image",
+   "DE.Views.AddImage.textLinkSettings": "Paramètres de lien",
+diff --git a/apps/documenteditor/mobile/resources/css/app-material.css b/apps/documenteditor/mobile/resources/css/app-material.css
+index 3051ef7..1285dd7 100644
+--- a/apps/documenteditor/mobile/resources/css/app-material.css
++++ b/apps/documenteditor/mobile/resources/css/app-material.css
+@@ -6925,6 +6925,11 @@ i.icon.icon-image-library {
+   height: 24px;
+   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20clip-path%3D%22url(%23clip0)%22%3E%3Cpath%20fill-rule%3D%22evenodd%22%20clip-rule%3D%22evenodd%22%20d%3D%22M20%205.5H4C3.72386%205.5%203.5%205.72386%203.5%206V15.5822L8.03349%2011.6898C8.47476%2011.3109%209.11904%2011.2865%209.58778%2011.6308L13.5726%2014.5579L15.9619%2012.6774C16.4488%2012.2942%2017.1428%2012.3255%2017.5933%2012.7509L20.5%2015.4962V6C20.5%205.72386%2020.2761%205.5%2020%205.5ZM20.5%2017.5294L20.485%2017.5453L16.7201%2013.9895L14.3509%2015.8542C13.9095%2016.2016%2013.2905%2016.2119%2012.8378%2015.8793L8.85988%2012.9573L3.5%2017.5592V18C3.5%2018.2761%203.72386%2018.5%204%2018.5H20C20.2761%2018.5%2020.5%2018.2761%2020.5%2018V17.5294ZM4%204C2.89543%204%202%204.89543%202%206V18C2%2019.1046%202.89543%2020%204%2020H20C21.1046%2020%2022%2019.1046%2022%2018V6C22%204.89543%2021.1046%204%2020%204H4ZM16.5%209.5C16.5%2011.1569%2015.1569%2012.5%2013.5%2012.5C11.8431%2012.5%2010.5%2011.1569%2010.5%209.5C10.5%207.84315%2011.8431%206.5%2013.5%206.5C15.1569%206.5%2016.5%207.84315%2016.5%209.5ZM13.5%2011C14.3284%2011%2015%2010.3284%2015%209.5C15%208.67157%2014.3284%208%2013.5%208C12.6716%208%2012%208.67157%2012%209.5C12%2010.3284%2012.6716%2011%2013.5%2011Z%22%20fill%3D%22%23446995%22%2F%3E%3C%2Fg%3E%3Cdefs%3E%3CclipPath%20id%3D%22clip0%22%3E%3Cpath%20d%3D%22M0%200H24V24H0V0Z%22%20fill%3D%22transparent%22%2F%3E%3C%2FclipPath%3E%3C%2Fdefs%3E%3C%2Fsvg%3E");
+ }
++i.icon.icon-image-storage {
++  width: 24px;
++  height: 24px;
++  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='24' width='24'%3E%3Cpath d='M4 20q-.825 0-1.412-.587Q2 18.825 2 18V6q0-.825.588-1.412Q3.175 4 4 4h6l2 2h8q.825 0 1.413.588Q22 7.175 22 8H11.175l-2-2H4v12l2.4-8h17.1l-2.575 8.575q-.2.65-.737 1.038Q19.65 20 19 20Zm2.1-2H19l1.8-6H7.9Zm0 0 1.8-6-1.8 6ZM4 8V6v2Z' fill='%23446995'/%3E%3C/svg%3E");
++}
+ i.icon.icon-table-borders-all {
+   width: 28px;
+   height: 28px;
+diff --git a/apps/presentationeditor/mobile/app/controller/add/AddImage.js b/apps/presentationeditor/mobile/app/controller/add/AddImage.js
+index d95a885..fd2f91c 100644
+--- a/apps/presentationeditor/mobile/app/controller/add/AddImage.js
++++ b/apps/presentationeditor/mobile/app/controller/add/AddImage.js
+@@ -60,6 +60,10 @@ define([
+             initialize: function () {
+                 Common.NotificationCenter.on('addcontainer:show', _.bind(this.initEvents, this));
+ 
++                Common.NotificationCenter.on('storage:image-load', _.bind(this.openImageFromStorage, this));
++                Common.NotificationCenter.on('storage:image-insert', _.bind(this.insertImageFromStorage, this));
++                Common.Gateway.on('insertimage',                            _.bind(this.insertImage, this));
++
+                 this.addListeners({
+                     'AddImage': {
+                         'page:show' : this.onPageShow
+@@ -78,6 +82,57 @@ define([
+             initEvents: function () {
+                 var me = this;
+                 $('#add-image-file').single('click', _.bind(me.onInsertByFile, me));
++
++                var canRequestInsertImage = true; //TODO Get the appOptions
++                if(canRequestInsertImage) {
++                    $('#add-image-storage').single('click', _.bind(me.onInsertFromStorage, me));
++                } else {
++                    $('#add-image-storage').hide();
++                }
++
++            },
++
++            // Called when clicking on Picture From Storage button
++            onInsertFromStorage: function(e) {
++                // console.log("onInsertFromStorage", e);
++                Common.NotificationCenter.trigger('storage:image-load', 'add');
++            },
++
++            // Send event to the Gateway so the parent can call the
++            // function set in the config
++            openImageFromStorage: function(type) {
++                var me = this;
++
++                // console.log("openImageFromStorage", type);
++                var canRequestInsertImage = true;
++                if (canRequestInsertImage) {
++                    Common.Gateway.requestInsertImage(type);
++                }
++            },
++
++            // Receives the file(s) selected and insert them in the document
++            insertImageFromStorage: function(data) {
++                // console.log("insertImageFromStorage", data);
++                PE.getController('AddContainer').hideModal();
++                if (data && data._urls && (!data.c || data.c=='add')) {
++                    (data._urls.length>0) && this.api.AddImageUrl(data._urls, undefined, data.token);// for loading from storage
++                }
++            },
++
++            insertImage: function(data) { // gateway
++                if (data && (data.url || data.images)) {
++                    data.url && console.log("Obsolete: The 'url' parameter of the 'insertImage' method is deprecated. Please use 'images' parameter instead.");
++
++                    var arr = [];
++                    if (data.images && data.images.length>0) {
++                        for (var i=0; i<data.images.length; i++) {
++                            data.images[i] && data.images[i].url && arr.push( data.images[i].url);
++                        }
++                    } else
++                        data.url && arr.push(data.url);
++                    data._urls = arr;
++                }
++                Common.NotificationCenter.trigger('storage:image-insert', data);
+             },
+ 
+             onPageShow: function () {
+diff --git a/apps/presentationeditor/mobile/app/template/AddImage.template b/apps/presentationeditor/mobile/app/template/AddImage.template
+index f5bbcb0..23c3a05 100644
+--- a/apps/presentationeditor/mobile/app/template/AddImage.template
++++ b/apps/presentationeditor/mobile/app/template/AddImage.template
+@@ -26,6 +26,18 @@
+                     </div>
+                 </a>
+             </li>
++            <li>
++                <a id="add-image-storage" class="item-link no-indicator no-fastclick">
++                    <div class="item-content">
++                        <div class="item-media">
++                            <i class="icon icon-image-storage"></i>
++                        </div>
++                        <div class="item-inner">
++                            <div class="item-title"><%= scope.textFromStorage %></div>
++                        </div>
++                    </div>
++                </a>
++            </li>
+         </ul>
+     </div>
+ </div>
+diff --git a/apps/presentationeditor/mobile/app/view/add/AddImage.js b/apps/presentationeditor/mobile/app/view/add/AddImage.js
+index 0ca437e..852f2b0 100644
+--- a/apps/presentationeditor/mobile/app/view/add/AddImage.js
++++ b/apps/presentationeditor/mobile/app/view/add/AddImage.js
+@@ -122,7 +122,8 @@ define([
+ 
+             textFromLibrary: 'Picture from Library',
+             textFromURL: 'Picture from URL',
+-            textBack: 'Back', 
++            textFromStorage: 'Picture from Storage',
++            textBack: 'Back',
+             textLinkSettings: 'Link Settings',
+             textAddress: 'Address',
+             textImageURL: 'Image URL',
+diff --git a/apps/presentationeditor/mobile/locale/en.json b/apps/presentationeditor/mobile/locale/en.json
+index 40ba359..cb694e1 100644
+--- a/apps/presentationeditor/mobile/locale/en.json
++++ b/apps/presentationeditor/mobile/locale/en.json
+@@ -280,6 +280,7 @@
+   "PE.Views.AddImage.textBack": "Back",
+   "PE.Views.AddImage.textFromLibrary": "Picture from Library",
+   "PE.Views.AddImage.textFromURL": "Picture from URL",
++  "PE.Views.AddImage.textFromStorage": "Picture from Storage",
+   "PE.Views.AddImage.textImageURL": "Image URL",
+   "PE.Views.AddImage.textInsertImage": "Insert Image",
+   "PE.Views.AddImage.textLinkSettings": "Link Settings",
+@@ -353,6 +354,7 @@
+   "PE.Views.EditImage.textForward": "Move Forward",
+   "PE.Views.EditImage.textFromLibrary": "Picture from Library",
+   "PE.Views.EditImage.textFromURL": "Picture from URL",
++  "PE.Views.EditImage.textFromStorage": "Picture from Storage",
+   "PE.Views.EditImage.textImageURL": "Image URL",
+   "PE.Views.EditImage.textLinkSettings": "Link Settings",
+   "PE.Views.EditImage.textRemove": "Remove Image",
+diff --git a/apps/presentationeditor/mobile/locale/fr.json b/apps/presentationeditor/mobile/locale/fr.json
+index 1cf9d2d..6eb4e79 100644
+--- a/apps/presentationeditor/mobile/locale/fr.json
++++ b/apps/presentationeditor/mobile/locale/fr.json
+@@ -280,6 +280,7 @@
+   "PE.Views.AddImage.textBack": "Retour en arrière",
+   "PE.Views.AddImage.textFromLibrary": "Image depuis bibliothèque",
+   "PE.Views.AddImage.textFromURL": "Image depuis URL",
++  "PE.Views.AddImage.textFromStorage": "Image de stockage",
+   "PE.Views.AddImage.textImageURL": "URL image",
+   "PE.Views.AddImage.textInsertImage": "Insérer image",
+   "PE.Views.AddImage.textLinkSettings": "Réglages lien",
+diff --git a/apps/presentationeditor/mobile/resources/css/app-material.css b/apps/presentationeditor/mobile/resources/css/app-material.css
+index cbc39d2..a5d6d6c 100644
+--- a/apps/presentationeditor/mobile/resources/css/app-material.css
++++ b/apps/presentationeditor/mobile/resources/css/app-material.css
+@@ -6911,6 +6911,10 @@ i.icon.icon-image-library {
+   height: 24px;
+   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20clip-path%3D%22url(%23clip0)%22%3E%3Cpath%20fill-rule%3D%22evenodd%22%20clip-rule%3D%22evenodd%22%20d%3D%22M20%205.5H4C3.72386%205.5%203.5%205.72386%203.5%206V15.5822L8.03349%2011.6898C8.47476%2011.3109%209.11904%2011.2865%209.58778%2011.6308L13.5726%2014.5579L15.9619%2012.6774C16.4488%2012.2942%2017.1428%2012.3255%2017.5933%2012.7509L20.5%2015.4962V6C20.5%205.72386%2020.2761%205.5%2020%205.5ZM20.5%2017.5294L20.485%2017.5453L16.7201%2013.9895L14.3509%2015.8542C13.9095%2016.2016%2013.2905%2016.2119%2012.8378%2015.8793L8.85988%2012.9573L3.5%2017.5592V18C3.5%2018.2761%203.72386%2018.5%204%2018.5H20C20.2761%2018.5%2020.5%2018.2761%2020.5%2018V17.5294ZM4%204C2.89543%204%202%204.89543%202%206V18C2%2019.1046%202.89543%2020%204%2020H20C21.1046%2020%2022%2019.1046%2022%2018V6C22%204.89543%2021.1046%204%2020%204H4ZM16.5%209.5C16.5%2011.1569%2015.1569%2012.5%2013.5%2012.5C11.8431%2012.5%2010.5%2011.1569%2010.5%209.5C10.5%207.84315%2011.8431%206.5%2013.5%206.5C15.1569%206.5%2016.5%207.84315%2016.5%209.5ZM13.5%2011C14.3284%2011%2015%2010.3284%2015%209.5C15%208.67157%2014.3284%208%2013.5%208C12.6716%208%2012%208.67157%2012%209.5C12%2010.3284%2012.6716%2011%2013.5%2011Z%22%20fill%3D%22%23aa5252%22%2F%3E%3C%2Fg%3E%3Cdefs%3E%3CclipPath%20id%3D%22clip0%22%3E%3Cpath%20d%3D%22M0%200H24V24H0V0Z%22%20fill%3D%22transparent%22%2F%3E%3C%2FclipPath%3E%3C%2Fdefs%3E%3C%2Fsvg%3E");
+ }
++i.icon.icon-image-storage {
++  width: 24px;
++  height: 24px;  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='24' width='24'%3E%3Cpath d='M4 20q-.825 0-1.412-.587Q2 18.825 2 18V6q0-.825.588-1.412Q3.175 4 4 4h6l2 2h8q.825 0 1.413.588Q22 7.175 22 8H11.175l-2-2H4v12l2.4-8h17.1l-2.575 8.575q-.2.65-.737 1.038Q19.65 20 19 20Zm2.1-2H19l1.8-6H7.9Zm0 0 1.8-6-1.8 6ZM4 8V6v2Z' fill='%23aa5252'/%3E%3C/svg%3E");
++}
+ i.icon.icon-text-valign-top {
+   width: 22px;
+   height: 22px;
+diff --git a/apps/spreadsheeteditor/mobile/app/controller/add/AddOther.js b/apps/spreadsheeteditor/mobile/app/controller/add/AddOther.js
+index dd10964..e8b8d57 100644
+--- a/apps/spreadsheeteditor/mobile/app/controller/add/AddOther.js
++++ b/apps/spreadsheeteditor/mobile/app/controller/add/AddOther.js
+@@ -56,6 +56,10 @@ define([
+             initialize: function () {
+                 Common.NotificationCenter.on('addcontainer:show', _.bind(this.initEvents, this));
+ 
++                Common.NotificationCenter.on('storage:image-load', _.bind(this.openImageFromStorage, this));
++                Common.NotificationCenter.on('storage:image-insert', _.bind(this.insertImageFromStorage, this));
++                Common.Gateway.on('insertimage',                            _.bind(this.insertImage, this));
++
+                 this.addListeners({
+                     'AddOther': {
+                         'page:show' : this.onPageShow
+@@ -96,6 +100,49 @@ define([
+                 this.view.hideInsertComments = this.isHideInsertComment();
+             },
+ 
++            // Called when clicking on Picture From Storage button
++            onInsertFromStorage: function(e) {
++                // console.log("onInsertFromStorage", e);
++                Common.NotificationCenter.trigger('storage:image-load', 'add');
++            },
++
++            // Send event to the Gateway so the parent can call the
++            // function set in the config
++            openImageFromStorage: function(type) {
++                var me = this;
++
++                // console.log("openImageFromStorag", type);
++                var canRequestInsertImage = true;
++                if (canRequestInsertImage) {
++                    Common.Gateway.requestInsertImage(type);
++                }
++            },
++
++            // Receives the file(s) selected and insert them in the document
++            insertImageFromStorage: function(data) {
++                // console.log("insertImageFromStorage", data);
++                SSE.getController('AddContainer').hideModal();
++                if (data && data._urls && (!data.c || data.c=='add')) {
++                    (data._urls.length>0) && this.api.asc_addImageDrawingObject(data._urls, undefined, data.token);// for loading from storage
++                }
++            },
++
++            insertImage: function(data) { // gateway
++                if (data && (data.url || data.images)) {
++                    data.url && console.log("Obsolete: The 'url' parameter of the 'insertImage' method is deprecated. Please use 'images' parameter instead.");
++
++                    var arr = [];
++                    if (data.images && data.images.length>0) {
++                        for (var i=0; i<data.images.length; i++) {
++                            data.images[i] && data.images[i].url && arr.push( data.images[i].url);
++                        }
++                    } else
++                        data.url && arr.push(data.url);
++                    data._urls = arr;
++                }
++                Common.NotificationCenter.trigger('storage:image-insert', data);
++            },
++
+             isHideInsertComment: function() {
+                 var cellinfo = this.api.asc_getCellInfo();
+                 var iscelllocked    = cellinfo.asc_getLocked(),
+@@ -121,6 +168,13 @@ define([
+                     $('#addimage-file').single('click', function () {
+                         me.onInsertImage({islocal:true});
+                     });
++
++                    var canRequestInsertImage = true; //TODO Get the appOptions
++                    if(canRequestInsertImage) {
++                        $('#add-image-storage').single('click', _.bind(me.onInsertFromStorage, me));
++                    } else {
++                        $('#add-image-storage').hide();
++                    }
+                 } else if (pageId === "#addother-insert-comment") {
+                     me.initInsertComment(false);
+                 }
+diff --git a/apps/spreadsheeteditor/mobile/app/template/AddOther.template b/apps/spreadsheeteditor/mobile/app/template/AddOther.template
+index dd247de..dcac88b 100644
+--- a/apps/spreadsheeteditor/mobile/app/template/AddOther.template
++++ b/apps/spreadsheeteditor/mobile/app/template/AddOther.template
+@@ -84,6 +84,18 @@
+                             </div>
+                         </a>
+                     </li>
++                    <li>
++                        <a id="add-image-storage" class="item-link no-indicator no-fastclick">
++                            <div class="item-content">
++                                <div class="item-media">
++                                    <i class="icon icon-image-storage"></i>
++                                </div>
++                                <div class="item-inner">
++                                    <div class="item-title"><%= scope.textFromStorage %></div>
++                                </div>
++                            </div>
++                        </a>
++                    </li>
+                 </ul>
+             </div>
+         </div>
+diff --git a/apps/spreadsheeteditor/mobile/app/view/add/AddOther.js b/apps/spreadsheeteditor/mobile/app/view/add/AddOther.js
+index 4cc905e..093a10c 100644
+--- a/apps/spreadsheeteditor/mobile/app/view/add/AddOther.js
++++ b/apps/spreadsheeteditor/mobile/app/view/add/AddOther.js
+@@ -251,7 +251,7 @@ define([
+             getUserName: function (username) {
+                 return Common.Utils.String.htmlEncode(Common.Utils.UserInfoParser.getParsedName(username));
+             },
+-            
++
+             showInsertImage: function () {
+                 this.showPage('#addother-insimage');
+ 
+@@ -308,6 +308,7 @@ define([
+             textInsert: 'Insert',
+             textFromLibrary: 'Picture from Library',
+             textFromURL: 'Picture from URL',
++            textFromStorage: 'Picture from Storage',
+             textAddress: 'Address',
+             textImageURL: 'Image URL',
+             textFilter: 'Filter',
+diff --git a/apps/spreadsheeteditor/mobile/locale/en.json b/apps/spreadsheeteditor/mobile/locale/en.json
+index 8136635..d3fabbe 100644
+--- a/apps/spreadsheeteditor/mobile/locale/en.json
++++ b/apps/spreadsheeteditor/mobile/locale/en.json
+@@ -397,6 +397,7 @@
+   "SSE.Views.AddOther.textFilter": "Filter",
+   "SSE.Views.AddOther.textFromLibrary": "Picture from Library",
+   "SSE.Views.AddOther.textFromURL": "Picture from URL",
++  "SSE.Views.AddOther.textFromStorage": "Picture from Storage",
+   "SSE.Views.AddOther.textImageURL": "Image URL",
+   "SSE.Views.AddOther.textInsert": "Insert",
+   "SSE.Views.AddOther.textInsertImage": "Insert Image",
+diff --git a/apps/spreadsheeteditor/mobile/locale/fr.json b/apps/spreadsheeteditor/mobile/locale/fr.json
+index 011c6b0..5c1413e 100644
+--- a/apps/spreadsheeteditor/mobile/locale/fr.json
++++ b/apps/spreadsheeteditor/mobile/locale/fr.json
+@@ -397,6 +397,7 @@
+   "SSE.Views.AddOther.textFilter": "Filtre",
+   "SSE.Views.AddOther.textFromLibrary": "Image de la bibliothèque",
+   "SSE.Views.AddOther.textFromURL": "Image à partir d'une URL",
++  "SSE.Views.AddOther.textFromStorage": "Image de stockage",
+   "SSE.Views.AddOther.textImageURL": "URL image",
+   "SSE.Views.AddOther.textInsert": "Insérer",
+   "SSE.Views.AddOther.textInsertImage": "Insérer une image",
+diff --git a/apps/spreadsheeteditor/mobile/resources/css/app-material.css b/apps/spreadsheeteditor/mobile/resources/css/app-material.css
+index 33c776d..96543f3 100644
+--- a/apps/spreadsheeteditor/mobile/resources/css/app-material.css
++++ b/apps/spreadsheeteditor/mobile/resources/css/app-material.css
+@@ -6873,6 +6873,11 @@ i.icon.icon-image-library {
+   height: 24px;
+   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20clip-path%3D%22url(%23clip0)%22%3E%3Cpath%20fill-rule%3D%22evenodd%22%20clip-rule%3D%22evenodd%22%20d%3D%22M20%205.5H4C3.72386%205.5%203.5%205.72386%203.5%206V15.5822L8.03349%2011.6898C8.47476%2011.3109%209.11904%2011.2865%209.58778%2011.6308L13.5726%2014.5579L15.9619%2012.6774C16.4488%2012.2942%2017.1428%2012.3255%2017.5933%2012.7509L20.5%2015.4962V6C20.5%205.72386%2020.2761%205.5%2020%205.5ZM20.5%2017.5294L20.485%2017.5453L16.7201%2013.9895L14.3509%2015.8542C13.9095%2016.2016%2013.2905%2016.2119%2012.8378%2015.8793L8.85988%2012.9573L3.5%2017.5592V18C3.5%2018.2761%203.72386%2018.5%204%2018.5H20C20.2761%2018.5%2020.5%2018.2761%2020.5%2018V17.5294ZM4%204C2.89543%204%202%204.89543%202%206V18C2%2019.1046%202.89543%2020%204%2020H20C21.1046%2020%2022%2019.1046%2022%2018V6C22%204.89543%2021.1046%204%2020%204H4ZM16.5%209.5C16.5%2011.1569%2015.1569%2012.5%2013.5%2012.5C11.8431%2012.5%2010.5%2011.1569%2010.5%209.5C10.5%207.84315%2011.8431%206.5%2013.5%206.5C15.1569%206.5%2016.5%207.84315%2016.5%209.5ZM13.5%2011C14.3284%2011%2015%2010.3284%2015%209.5C15%208.67157%2014.3284%208%2013.5%208C12.6716%208%2012%208.67157%2012%209.5C12%2010.3284%2012.6716%2011%2013.5%2011Z%22%20fill%3D%22%2340865c%22%2F%3E%3C%2Fg%3E%3Cdefs%3E%3CclipPath%20id%3D%22clip0%22%3E%3Cpath%20d%3D%22M0%200H24V24H0V0Z%22%20fill%3D%22transparent%22%2F%3E%3C%2FclipPath%3E%3C%2Fdefs%3E%3C%2Fsvg%3E");
+ }
++i.icon.icon-image-storage {
++  width: 24px;
++  height: 24px;
++  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='24' width='24'%3E%3Cpath d='M4 20q-.825 0-1.412-.587Q2 18.825 2 18V6q0-.825.588-1.412Q3.175 4 4 4h6l2 2h8q.825 0 1.413.588Q22 7.175 22 8H11.175l-2-2H4v12l2.4-8h17.1l-2.575 8.575q-.2.65-.737 1.038Q19.65 20 19 20Zm2.1-2H19l1.8-6H7.9Zm0 0 1.8-6-1.8 6ZM4 8V6v2Z' fill='%2340865c'/%3E%3C/svg%3E");
++}
+ i.icon.icon-sort {
+   width: 22px;
+   height: 22px;
+-- 
+2.34.1
+
+
+From 90a0c93a0e8ed00f9e8d650c70d5c4da483a4287 Mon Sep 17 00:00:00 2001
+From: Nelson DINIS GONCALVES <ndinisgoncalves@grandlyon.com>
+Date: Tue, 30 Aug 2022 14:10:22 +0200
+Subject: [PATCH 2/4] "Picture from storage" while editing images
+
+---
+ .../mobile/app/controller/add/AddImage.js     |  7 +++--
+ .../mobile/app/controller/edit/EditImage.js   | 29 ++++++++++++++++++
+ .../mobile/app/template/EditImage.template    | 12 ++++++++
+ .../mobile/app/view/edit/EditImage.js         |  1 +
+ apps/documenteditor/mobile/locale/en.json     |  1 +
+ apps/documenteditor/mobile/locale/fr.json     |  3 +-
+ .../mobile/resources/css/app-ios.css          |  5 ++++
+ .../mobile/app/controller/edit/EditImage.js   | 30 +++++++++++++++++++
+ .../mobile/app/template/EditImage.template    | 12 ++++++++
+ .../mobile/app/view/edit/EditImage.js         |  1 +
+ apps/presentationeditor/mobile/locale/fr.json |  1 +
+ .../mobile/resources/css/app-ios.css          |  5 ++++
+ .../mobile/app/controller/edit/EditImage.js   | 30 +++++++++++++++++++
+ .../mobile/app/template/EditImage.template    | 12 ++++++++
+ .../mobile/app/view/edit/EditImage.js         |  1 +
+ apps/spreadsheeteditor/mobile/locale/en.json  |  1 +
+ apps/spreadsheeteditor/mobile/locale/fr.json  |  1 +
+ .../mobile/resources/css/app-ios.css          |  5 ++++
+ 18 files changed, 153 insertions(+), 4 deletions(-)
+
+diff --git a/apps/documenteditor/mobile/app/controller/add/AddImage.js b/apps/documenteditor/mobile/app/controller/add/AddImage.js
+index 5a74c2a..e1f8fc3 100644
+--- a/apps/documenteditor/mobile/app/controller/add/AddImage.js
++++ b/apps/documenteditor/mobile/app/controller/add/AddImage.js
+@@ -97,7 +97,7 @@ define([
+ 
+             // Called when clicking on Picture From Storage button
+             onInsertFromStorage: function(e) {
+-                // console.log("onInsertFromStorage", e);
++                // console.debug("add:onInsertFromStorage", e);
+                 Common.NotificationCenter.trigger('storage:image-load', 'add');
+             },
+ 
+@@ -106,7 +106,7 @@ define([
+             openImageFromStorage: function(type) {
+                 var me = this;
+ 
+-                // console.log("openImageFromStorage", type);
++                // console.debug("add:openImageFromStorage", type);
+                 var canRequestInsertImage = true;
+                 if (canRequestInsertImage) {
+                     Common.Gateway.requestInsertImage(type);
+@@ -115,7 +115,7 @@ define([
+ 
+             // Receives the file(s) selected and insert them in the document
+             insertImageFromStorage: function(data) {
+-                // console.log("insertImageFromStorage", data);
++                // console.debug("add:insertImageFromStorage", data);
+                 DE.getController('AddContainer').hideModal();
+                 if (data && data._urls && (!data.c || data.c=='add')) {
+                     (data._urls.length>0) && this.api.AddImageUrl(data._urls, undefined, data.token);// for loading from storage
+@@ -123,6 +123,7 @@ define([
+             },
+ 
+             insertImage: function(data) { // gateway
++                // console.debug("add:insertImage", data);
+                 if (data && (data.url || data.images)) {
+                     data.url && console.log("Obsolete: The 'url' parameter of the 'insertImage' method is deprecated. Please use 'images' parameter instead.");
+ 
+diff --git a/apps/documenteditor/mobile/app/controller/edit/EditImage.js b/apps/documenteditor/mobile/app/controller/edit/EditImage.js
+index 0c1f4c9..9bd1df6 100644
+--- a/apps/documenteditor/mobile/app/controller/edit/EditImage.js
++++ b/apps/documenteditor/mobile/app/controller/edit/EditImage.js
+@@ -94,6 +94,8 @@ define([
+             initialize: function () {
+                 Common.NotificationCenter.on('editcontainer:show', _.bind(this.initEvents, this));
+ 
++                Common.NotificationCenter.on('storage:image-insert', _.bind(this.insertImageFromStorage, this));
++
+                 this.addListeners({
+                     'EditImage': {
+                         'page:show': this.onPageShow
+@@ -121,6 +123,27 @@ define([
+                 me.initSettings();
+             },
+ 
++            // Called when clicking on Picture From Storage button
++            onInsertFromStorage: function(e) {
++                // console.debug("edit:onInsertFromStorage", e);
++                Common.NotificationCenter.trigger('storage:image-load', 'change');
++            },
++
++            setImageUrl: function(url, token) {
++                var props = new Asc.asc_CImgProperty();
++                props.put_ImageUrl(url, token);
++                this.api.ImgApply(props);
++            },
++
++            // Receives the file selected and insert them in the document
++            insertImageFromStorage: function(data) {
++                // console.debug("edit:insertImageFromStorage", data);
++                if (data && data._urls && data.c=='change') {
++                    DE.getController('EditContainer').hideModal();
++                    this.setImageUrl(data._urls[0], data.token);
++                }
++            },
++
+             onPageShow: function (view, pageId) {
+                 var me = this;
+ 
+@@ -133,6 +156,12 @@ define([
+ 
+                 $('#edit-image-file').single('click',                       _.bind(me.onReplaceByFile, me));
+                 $('.edit-image-url-link .button, .edit-image-url-link .list-button').single('click', _.bind(me.onReplaceByUrl, me));
++                var canRequestInsertImage = true; //TODO Get the appOptions
++                if(canRequestInsertImage) {
++                    $('#edit-image-storage').single('click', _.bind(me.onInsertFromStorage, me));
++                } else {
++                    $('#add-image-storage').hide();
++                }
+ 
+                 $('.image-reorder a').single('click',                       _.bind(me.onReorder, me));
+ 
+diff --git a/apps/documenteditor/mobile/app/template/EditImage.template b/apps/documenteditor/mobile/app/template/EditImage.template
+index f19d717..19a3eb1 100644
+--- a/apps/documenteditor/mobile/app/template/EditImage.template
++++ b/apps/documenteditor/mobile/app/template/EditImage.template
+@@ -320,6 +320,18 @@
+                             </div>
+                         </a>
+                     </li>
++                    <li>
++                        <a id="edit-image-storage" class="item-link no-indicator no-fastclick">
++                            <div class="item-content">
++                                <div class="item-media">
++                                    <i class="icon icon-image-storage"></i>
++                                </div>
++                                <div class="item-inner">
++                                    <div class="item-title"><%= scope.textFromStorage %></div>
++                                </div>
++                            </div>
++                        </a>
++                    </li>
+                 </ul>
+             </div>
+         </div>
+diff --git a/apps/documenteditor/mobile/app/view/edit/EditImage.js b/apps/documenteditor/mobile/app/view/edit/EditImage.js
+index c0e194f..1685c0a 100644
+--- a/apps/documenteditor/mobile/app/view/edit/EditImage.js
++++ b/apps/documenteditor/mobile/app/view/edit/EditImage.js
+@@ -179,6 +179,7 @@ define([
+             textDistanceText: 'Distance from Text', 
+             textFromLibrary: 'Picture from Library',
+             textFromURL: 'Picture from URL',
++            textFromStorage: 'Picture from Storage',
+             textLinkSettings: 'Link Settings',
+             textAddress: 'Address',
+             textImageURL: 'Image URL',
+diff --git a/apps/documenteditor/mobile/locale/en.json b/apps/documenteditor/mobile/locale/en.json
+index f2fef1a..b5312b9 100644
+--- a/apps/documenteditor/mobile/locale/en.json
++++ b/apps/documenteditor/mobile/locale/en.json
+@@ -407,6 +407,7 @@
+   "DE.Views.EditImage.textForward": "Move Forward",
+   "DE.Views.EditImage.textFromLibrary": "Picture from Library",
+   "DE.Views.EditImage.textFromURL": "Picture from URL",
++  "DE.Views.EditImage.textFromStorage": "Picture from Storage",
+   "DE.Views.EditImage.textImageURL": "Image URL",
+   "DE.Views.EditImage.textInFront": "In Front",
+   "DE.Views.EditImage.textInline": "Inline",
+diff --git a/apps/documenteditor/mobile/locale/fr.json b/apps/documenteditor/mobile/locale/fr.json
+index 1b23c8a..866d134 100644
+--- a/apps/documenteditor/mobile/locale/fr.json
++++ b/apps/documenteditor/mobile/locale/fr.json
+@@ -324,7 +324,7 @@
+   "DE.Views.AddImage.textBack": "Retour",
+   "DE.Views.AddImage.textFromLibrary": "Image de la bibliothèque",
+   "DE.Views.AddImage.textFromURL": "Image à partir d'une URL",
+-  "DE.Views.AddImage.textFromStorage": "Picture from Storage",
++  "DE.Views.AddImage.textFromStorage": "Image de stockage",
+   "DE.Views.AddImage.textImageURL": "URL d'une image",
+   "DE.Views.AddImage.textInsertImage": "Insérer une image",
+   "DE.Views.AddImage.textLinkSettings": "Paramètres de lien",
+@@ -407,6 +407,7 @@
+   "DE.Views.EditImage.textForward": "Déplacer vers l'avant",
+   "DE.Views.EditImage.textFromLibrary": "Image de la bibliothèque",
+   "DE.Views.EditImage.textFromURL": "Image à partir d'une URL",
++  "DE.Views.EditImage.textFromStorage": "Image de stockage",
+   "DE.Views.EditImage.textImageURL": "URL d'une image",
+   "DE.Views.EditImage.textInFront": "Devant",
+   "DE.Views.EditImage.textInline": "En ligne",
+diff --git a/apps/documenteditor/mobile/resources/css/app-ios.css b/apps/documenteditor/mobile/resources/css/app-ios.css
+index 33440b8..b81fc46 100644
+--- a/apps/documenteditor/mobile/resources/css/app-ios.css
++++ b/apps/documenteditor/mobile/resources/css/app-ios.css
+@@ -7333,6 +7333,11 @@ i.icon.icon-image-library {
+   height: 22px;
+   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20xmlns%3Axlink%3D%22http%3A%2F%2Fwww.w3.org%2F1999%2Fxlink%22%20viewBox%3D%220%200%2022%2022%22%3E%3Cdefs%3E%3Cstyle%3E.cls-1%7Bisolation%3Aisolate%3B%7D.cls-2%7Bopacity%3A0.2%3B%7D.cls-3%7Bfill%3A%23fff%3B%7D.cls-10%2C.cls-11%2C.cls-4%2C.cls-6%2C.cls-7%2C.cls-8%2C.cls-9%7Bmix-blend-mode%3Amultiply%3B%7D.cls-4%7Bfill%3Aurl(%23grad_8)%3B%7D.cls-5%7Bfill%3Aurl(%23grad_10)%3B%7D.cls-6%7Bfill%3Aurl(%23grad_12)%3B%7D.cls-7%7Bfill%3Aurl(%23grad_14)%3B%7D.cls-8%7Bfill%3Aurl(%23grad_79)%3B%7D.cls-9%7Bfill%3Aurl(%23grad_77)%3B%7D.cls-10%7Bfill%3Aurl(%23grad_75)%3B%7D.cls-11%7Bfill%3Aurl(%23grad_81)%3B%7D%3C%2Fstyle%3E%3ClinearGradient%20id%3D%22grad_8%22%20x1%3D%2211.08%22%20y1%3D%2210.26%22%20x2%3D%2211.08%22%20y2%3D%221.26%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23f3e916%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23f89d34%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_10%22%20x1%3D%2211.08%22%20y1%3D%2220.44%22%20x2%3D%2211.08%22%20y2%3D%2211.88%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%235eb6e8%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23958cc3%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_12%22%20x1%3D%221.46%22%20y1%3D%2211.05%22%20x2%3D%2210.46%22%20y2%3D%2211.05%22%20gradientTransform%3D%22translate(17%205.09)%20rotate(90)%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23cc8dba%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23f86867%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_14%22%20x1%3D%2211.73%22%20y1%3D%2211.05%22%20x2%3D%2220.73%22%20y2%3D%2211.05%22%20gradientTransform%3D%22translate(27.28%20-5.18)%20rotate(90)%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%236ac07f%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23c5da3d%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_79%22%20x1%3D%2211.74%22%20y1%3D%2210.42%22%20x2%3D%2217.52%22%20y2%3D%224.63%22%20gradientTransform%3D%22translate(30.29%202.51)%20rotate(135)%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23c5da3d%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23f3e916%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_77%22%20x1%3D%224.7%22%20y1%3D%2217.49%22%20x2%3D%2210.48%22%20y2%3D%2211.71%22%20gradientTransform%3D%22translate(23.24%2019.65)%20rotate(135)%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%239595c3%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23cc8dba%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_75%22%20x1%3D%224.69%22%20y1%3D%224.64%22%20x2%3D%2210.47%22%20y2%3D%2210.42%22%20gradientTransform%3D%22translate(7.54%20-3.15)%20rotate(45)%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23f86867%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23f89d34%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_81%22%20x1%3D%2211.77%22%20y1%3D%2211.78%22%20x2%3D%2217.55%22%20y2%3D%2217.56%22%20gradientTransform%3D%22translate(14.63%20-6.05)%20rotate(45)%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%235ec0e8%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%236ac07f%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Ctitle%3Eicons_for_svg%3C%2Ftitle%3E%3Cg%20class%3D%22cls-1%22%3E%3Cg%20id%3D%22%D0%A1%D0%BB%D0%BE%D0%B9_1%22%20data-name%3D%22%D0%A1%D0%BB%D0%BE%D0%B9%201%22%3E%3Crect%20class%3D%22cls-2%22%20x%3D%220.09%22%20y%3D%220.01%22%20width%3D%2222%22%20height%3D%2222%22%20rx%3D%224%22%20ry%3D%224%22%2F%3E%3Crect%20class%3D%22cls-3%22%20x%3D%220.57%22%20y%3D%220.49%22%20width%3D%2221.04%22%20height%3D%2221.04%22%20rx%3D%223.6%22%20ry%3D%223.6%22%2F%3E%3Crect%20class%3D%22cls-4%22%20x%3D%228.33%22%20y%3D%221.26%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%2F%3E%3Crect%20class%3D%22cls-5%22%20x%3D%228.33%22%20y%3D%2211.76%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%2F%3E%3Crect%20class%3D%22cls-6%22%20x%3D%223.21%22%20y%3D%226.55%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%20transform%3D%22translate(-5.09%2017)%20rotate(-90)%22%2F%3E%3Crect%20class%3D%22cls-7%22%20x%3D%2213.48%22%20y%3D%226.55%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%20transform%3D%22translate(5.18%2027.28)%20rotate(-90)%22%2F%3E%3Crect%20class%3D%22cls-8%22%20x%3D%2211.87%22%20y%3D%223.03%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%20transform%3D%22translate(19.64%2023.19)%20rotate(-135)%22%2F%3E%3Crect%20class%3D%22cls-9%22%20x%3D%224.8%22%20y%3D%2210.14%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%20transform%3D%22translate(2.54%2030.33)%20rotate(-135)%22%2F%3E%3Crect%20class%3D%22cls-10%22%20x%3D%224.83%22%20y%3D%223.03%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%20transform%3D%22translate(-3.1%207.56)%20rotate(-45)%22%2F%3E%3Crect%20class%3D%22cls-11%22%20x%3D%2211.87%22%20y%3D%2210.14%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%20transform%3D%22translate(-6.07%2014.63)%20rotate(-45)%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+ }
++i.icon.icon-image-storage {
++  width: 22px;
++  height: 22px;
++  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='24' width='24'%3E%3Cpath d='M4 20q-.825 0-1.412-.587Q2 18.825 2 18V6q0-.825.588-1.412Q3.175 4 4 4h6l2 2h8q.825 0 1.413.588Q22 7.175 22 8H11.175l-2-2H4v12l2.4-8h17.1l-2.575 8.575q-.2.65-.737 1.038Q19.65 20 19 20Zm2.1-2H19l1.8-6H7.9Zm0 0 1.8-6-1.8 6ZM4 8V6v2Z'/%3E%3C/svg%3E");
++}
+ i.icon.icon-table-borders-all {
+   width: 28px;
+   height: 28px;
+diff --git a/apps/presentationeditor/mobile/app/controller/edit/EditImage.js b/apps/presentationeditor/mobile/app/controller/edit/EditImage.js
+index ae1fc78..91cd7f6 100644
+--- a/apps/presentationeditor/mobile/app/controller/edit/EditImage.js
++++ b/apps/presentationeditor/mobile/app/controller/edit/EditImage.js
+@@ -65,6 +65,8 @@ define([
+             initialize: function () {
+                 Common.NotificationCenter.on('editcontainer:show', _.bind(this.initEvents, this));
+ 
++                Common.NotificationCenter.on('storage:image-insert', _.bind(this.insertImageFromStorage, this));
++
+                 this.addListeners({
+                     'EditImage': {
+                         'page:show': this.onPageShow
+@@ -92,12 +94,40 @@ define([
+                 me.initSettings();
+             },
+ 
++            // Called when clicking on Picture From Storage button
++            onInsertFromStorage: function(e) {
++                // console.debug("edit:onInsertFromStorage", e);
++                Common.NotificationCenter.trigger('storage:image-load', 'change');
++            },
++
++            setImageUrl: function(url, token) {
++                var props = new Asc.asc_CImgProperty();
++                props.put_ImageUrl(url, token);
++                this.api.ImgApply(props);
++            },
++
++            // Receives the file selected and insert them in the document
++            insertImageFromStorage: function(data) {
++                // console.debug("edit:insertImageFromStorage", data);
++                if (data && data._urls && data.c=='change') {
++                    PE.getController('EditContainer').hideModal();
++                    this.setImageUrl(data._urls[0], data.token);
++                }
++            },
++
+             onPageShow: function (view, pageId) {
+                 var me = this;
+ 
+                 $('#edit-image-file').single('click',                       _.bind(me.onReplaceByFile, me));
+                 $('.edit-image-url-link .button, .edit-image-url-link .list-button').single('click', _.bind(me.onReplaceByUrl, me));
+ 
++                var canRequestInsertImage = true; //TODO Get the appOptions
++                if(canRequestInsertImage) {
++                    $('#edit-image-storage').single('click', _.bind(me.onInsertFromStorage, me));
++                } else {
++                    $('#edit-image-storage').hide();
++                }
++
+                 $('.image-reorder a').single('click',                       _.bind(me.onReorder, me));
+                 $('.image-align a').single('click',                         _.bind(me.onAlign, me));
+ 
+diff --git a/apps/presentationeditor/mobile/app/template/EditImage.template b/apps/presentationeditor/mobile/app/template/EditImage.template
+index facdaf1..fc62ae0 100644
+--- a/apps/presentationeditor/mobile/app/template/EditImage.template
++++ b/apps/presentationeditor/mobile/app/template/EditImage.template
+@@ -147,6 +147,18 @@
+                             </div>
+                         </a>
+                     </li>
++                    <li>
++                        <a id="edit-image-storage" class="item-link no-indicator no-fastclick">
++                            <div class="item-content">
++                                <div class="item-media">
++                                    <i class="icon icon-image-storage"></i>
++                                </div>
++                                <div class="item-inner">
++                                    <div class="item-title"><%= scope.textFromStorage %></div>
++                                </div>
++                            </div>
++                        </a>
++                    </li>
+                 </ul>
+             </div>
+         </div>
+diff --git a/apps/presentationeditor/mobile/app/view/edit/EditImage.js b/apps/presentationeditor/mobile/app/view/edit/EditImage.js
+index 92344a3..818399d 100644
+--- a/apps/presentationeditor/mobile/app/view/edit/EditImage.js
++++ b/apps/presentationeditor/mobile/app/view/edit/EditImage.js
+@@ -165,6 +165,7 @@ define([
+             textForward: 'Move Forward',
+             textBackward: 'Move Backward',
+             textFromLibrary: 'Picture from Library',
++            textFromStorage: 'Picture from Storage',
+             textFromURL: 'Picture from URL',
+             textLinkSettings: 'Link Settings',
+             textAddress: 'Address',
+diff --git a/apps/presentationeditor/mobile/locale/fr.json b/apps/presentationeditor/mobile/locale/fr.json
+index 6eb4e79..6e4ff7f 100644
+--- a/apps/presentationeditor/mobile/locale/fr.json
++++ b/apps/presentationeditor/mobile/locale/fr.json
+@@ -354,6 +354,7 @@
+   "PE.Views.EditImage.textForward": "Déplacer vers l'avant",
+   "PE.Views.EditImage.textFromLibrary": "Image depuis bibliothèque",
+   "PE.Views.EditImage.textFromURL": "Image depuis URL",
++  "PE.Views.EditImage.textFromStorage": "Image de stockage",
+   "PE.Views.EditImage.textImageURL": "URL image",
+   "PE.Views.EditImage.textLinkSettings": "Réglages lien",
+   "PE.Views.EditImage.textRemove": "Supprimer image",
+diff --git a/apps/presentationeditor/mobile/resources/css/app-ios.css b/apps/presentationeditor/mobile/resources/css/app-ios.css
+index f3a1676..19d6578 100644
+--- a/apps/presentationeditor/mobile/resources/css/app-ios.css
++++ b/apps/presentationeditor/mobile/resources/css/app-ios.css
+@@ -7325,6 +7325,11 @@ i.icon.icon-image-library {
+   height: 22px;
+   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20xmlns%3Axlink%3D%22http%3A%2F%2Fwww.w3.org%2F1999%2Fxlink%22%20viewBox%3D%220%200%2022%2022%22%3E%3Cdefs%3E%3Cstyle%3E.cls-1%7Bisolation%3Aisolate%3B%7D.cls-2%7Bopacity%3A0.2%3B%7D.cls-3%7Bfill%3A%23fff%3B%7D.cls-10%2C.cls-11%2C.cls-4%2C.cls-6%2C.cls-7%2C.cls-8%2C.cls-9%7Bmix-blend-mode%3Amultiply%3B%7D.cls-4%7Bfill%3Aurl(%23grad_8)%3B%7D.cls-5%7Bfill%3Aurl(%23grad_10)%3B%7D.cls-6%7Bfill%3Aurl(%23grad_12)%3B%7D.cls-7%7Bfill%3Aurl(%23grad_14)%3B%7D.cls-8%7Bfill%3Aurl(%23grad_79)%3B%7D.cls-9%7Bfill%3Aurl(%23grad_77)%3B%7D.cls-10%7Bfill%3Aurl(%23grad_75)%3B%7D.cls-11%7Bfill%3Aurl(%23grad_81)%3B%7D%3C%2Fstyle%3E%3ClinearGradient%20id%3D%22grad_8%22%20x1%3D%2211.08%22%20y1%3D%2210.26%22%20x2%3D%2211.08%22%20y2%3D%221.26%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23f3e916%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23f89d34%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_10%22%20x1%3D%2211.08%22%20y1%3D%2220.44%22%20x2%3D%2211.08%22%20y2%3D%2211.88%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%235eb6e8%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23958cc3%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_12%22%20x1%3D%221.46%22%20y1%3D%2211.05%22%20x2%3D%2210.46%22%20y2%3D%2211.05%22%20gradientTransform%3D%22translate(17%205.09)%20rotate(90)%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23cc8dba%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23f86867%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_14%22%20x1%3D%2211.73%22%20y1%3D%2211.05%22%20x2%3D%2220.73%22%20y2%3D%2211.05%22%20gradientTransform%3D%22translate(27.28%20-5.18)%20rotate(90)%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%236ac07f%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23c5da3d%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_79%22%20x1%3D%2211.74%22%20y1%3D%2210.42%22%20x2%3D%2217.52%22%20y2%3D%224.63%22%20gradientTransform%3D%22translate(30.29%202.51)%20rotate(135)%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23c5da3d%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23f3e916%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_77%22%20x1%3D%224.7%22%20y1%3D%2217.49%22%20x2%3D%2210.48%22%20y2%3D%2211.71%22%20gradientTransform%3D%22translate(23.24%2019.65)%20rotate(135)%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%239595c3%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23cc8dba%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_75%22%20x1%3D%224.69%22%20y1%3D%224.64%22%20x2%3D%2210.47%22%20y2%3D%2210.42%22%20gradientTransform%3D%22translate(7.54%20-3.15)%20rotate(45)%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23f86867%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23f89d34%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_81%22%20x1%3D%2211.77%22%20y1%3D%2211.78%22%20x2%3D%2217.55%22%20y2%3D%2217.56%22%20gradientTransform%3D%22translate(14.63%20-6.05)%20rotate(45)%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%235ec0e8%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%236ac07f%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Ctitle%3Eicons_for_svg%3C%2Ftitle%3E%3Cg%20class%3D%22cls-1%22%3E%3Cg%20id%3D%22%D0%A1%D0%BB%D0%BE%D0%B9_1%22%20data-name%3D%22%D0%A1%D0%BB%D0%BE%D0%B9%201%22%3E%3Crect%20class%3D%22cls-2%22%20x%3D%220.09%22%20y%3D%220.01%22%20width%3D%2222%22%20height%3D%2222%22%20rx%3D%224%22%20ry%3D%224%22%2F%3E%3Crect%20class%3D%22cls-3%22%20x%3D%220.57%22%20y%3D%220.49%22%20width%3D%2221.04%22%20height%3D%2221.04%22%20rx%3D%223.6%22%20ry%3D%223.6%22%2F%3E%3Crect%20class%3D%22cls-4%22%20x%3D%228.33%22%20y%3D%221.26%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%2F%3E%3Crect%20class%3D%22cls-5%22%20x%3D%228.33%22%20y%3D%2211.76%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%2F%3E%3Crect%20class%3D%22cls-6%22%20x%3D%223.21%22%20y%3D%226.55%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%20transform%3D%22translate(-5.09%2017)%20rotate(-90)%22%2F%3E%3Crect%20class%3D%22cls-7%22%20x%3D%2213.48%22%20y%3D%226.55%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%20transform%3D%22translate(5.18%2027.28)%20rotate(-90)%22%2F%3E%3Crect%20class%3D%22cls-8%22%20x%3D%2211.87%22%20y%3D%223.03%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%20transform%3D%22translate(19.64%2023.19)%20rotate(-135)%22%2F%3E%3Crect%20class%3D%22cls-9%22%20x%3D%224.8%22%20y%3D%2210.14%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%20transform%3D%22translate(2.54%2030.33)%20rotate(-135)%22%2F%3E%3Crect%20class%3D%22cls-10%22%20x%3D%224.83%22%20y%3D%223.03%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%20transform%3D%22translate(-3.1%207.56)%20rotate(-45)%22%2F%3E%3Crect%20class%3D%22cls-11%22%20x%3D%2211.87%22%20y%3D%2210.14%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%20transform%3D%22translate(-6.07%2014.63)%20rotate(-45)%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+ }
++i.icon.icon-image-storage {
++  width: 22px;
++  height: 22px;
++  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='24' width='24'%3E%3Cpath d='M4 20q-.825 0-1.412-.587Q2 18.825 2 18V6q0-.825.588-1.412Q3.175 4 4 4h6l2 2h8q.825 0 1.413.588Q22 7.175 22 8H11.175l-2-2H4v12l2.4-8h17.1l-2.575 8.575q-.2.65-.737 1.038Q19.65 20 19 20Zm2.1-2H19l1.8-6H7.9Zm0 0 1.8-6-1.8 6ZM4 8V6v2Z'/%3E%3C/svg%3E");
++}
+ i.icon.icon-text-valign-top {
+   width: 22px;
+   height: 22px;
+diff --git a/apps/spreadsheeteditor/mobile/app/controller/edit/EditImage.js b/apps/spreadsheeteditor/mobile/app/controller/edit/EditImage.js
+index c36b195..8ed9b2c 100644
+--- a/apps/spreadsheeteditor/mobile/app/controller/edit/EditImage.js
++++ b/apps/spreadsheeteditor/mobile/app/controller/edit/EditImage.js
+@@ -65,6 +65,8 @@ define([
+             initialize: function () {
+                 Common.NotificationCenter.on('editcontainer:show', _.bind(this.initEvents, this));
+ 
++                Common.NotificationCenter.on('storage:image-insert', _.bind(this.insertImageFromStorage, this));
++
+                 this.addListeners({
+                     'EditImage': {
+                         'page:show': this.onPageShow
+@@ -84,6 +86,27 @@ define([
+                 _isEdit = mode.isEdit;
+             },
+ 
++            // Called when clicking on Picture From Storage button
++            onInsertFromStorage: function(e) {
++                // console.debug("edit:onInsertFromStorage", e);
++                Common.NotificationCenter.trigger('storage:image-load', 'change');
++            },
++
++            setImageUrl: function(url, token) {
++                var props = new Asc.asc_CImgProperty();
++                props.put_ImageUrl(url, token);
++                this.api.asc_setGraphicObjectProps(props);
++            },
++
++            // Receives the file selected and insert them in the document
++            insertImageFromStorage: function(data) {
++                // console.debug("edit:insertImageFromStorage", data);
++                if (data && data._urls && data.c=='change') {
++                    SSE.getController('EditContainer').hideModal();
++                    this.setImageUrl(data._urls[0], data.token);
++                }
++            },
++
+             onPageShow: function (view, pageId) {
+                 var me = this;
+ 
+@@ -125,6 +148,13 @@ define([
+ 
+             initReplacePage: function () {
+                 $('#edit-image-file').single('click', _.bind(this.onReplaceByFile, this));
++
++                var canRequestInsertImage = true; //TODO Get the appOptions
++                if(canRequestInsertImage) {
++                    $('#edit-image-storage').single('click', _.bind(this.onInsertFromStorage, this));
++                } else {
++                    $('#edit-image-storage').hide();
++                }
+             },
+ 
+             initReorderPage: function () {
+diff --git a/apps/spreadsheeteditor/mobile/app/template/EditImage.template b/apps/spreadsheeteditor/mobile/app/template/EditImage.template
+index b079158..981d914 100644
+--- a/apps/spreadsheeteditor/mobile/app/template/EditImage.template
++++ b/apps/spreadsheeteditor/mobile/app/template/EditImage.template
+@@ -138,6 +138,18 @@
+                             </div>
+                         </a>
+                     </li>
++                    <li>
++                        <a id="edit-image-storage" class="item-link no-indicator no-fastclick">
++                            <div class="item-content">
++                                <div class="item-media">
++                                    <i class="icon icon-image-storage"></i>
++                                </div>
++                                <div class="item-inner">
++                                    <div class="item-title"><%= scope.textFromStorage %></div>
++                                </div>
++                            </div>
++                        </a>
++                    </li>
+                 </ul>
+             </div>
+         </div>
+diff --git a/apps/spreadsheeteditor/mobile/app/view/edit/EditImage.js b/apps/spreadsheeteditor/mobile/app/view/edit/EditImage.js
+index d89a575..690051f 100644
+--- a/apps/spreadsheeteditor/mobile/app/view/edit/EditImage.js
++++ b/apps/spreadsheeteditor/mobile/app/view/edit/EditImage.js
+@@ -157,6 +157,7 @@ define([
+             textBackward: 'Move Backward',
+             textFromLibrary: 'Picture from Library',
+             textFromURL: 'Picture from URL',
++            textFromStorage: 'Picture from Storage',
+             textLinkSettings: 'Link Settings',
+             textAddress: 'Address',
+             textImageURL: 'Image URL',
+diff --git a/apps/spreadsheeteditor/mobile/locale/en.json b/apps/spreadsheeteditor/mobile/locale/en.json
+index d3fabbe..8a1e926 100644
+--- a/apps/spreadsheeteditor/mobile/locale/en.json
++++ b/apps/spreadsheeteditor/mobile/locale/en.json
+@@ -535,6 +535,7 @@
+   "SSE.Views.EditImage.textForward": "Move Forward",
+   "SSE.Views.EditImage.textFromLibrary": "Picture from Library",
+   "SSE.Views.EditImage.textFromURL": "Picture from URL",
++  "SSE.Views.EditImage.textFromStorage": "Picture from Storage",
+   "SSE.Views.EditImage.textImageURL": "Image URL",
+   "SSE.Views.EditImage.textLinkSettings": "Link Settings",
+   "SSE.Views.EditImage.textRemove": "Remove Image",
+diff --git a/apps/spreadsheeteditor/mobile/locale/fr.json b/apps/spreadsheeteditor/mobile/locale/fr.json
+index 5c1413e..815a877 100644
+--- a/apps/spreadsheeteditor/mobile/locale/fr.json
++++ b/apps/spreadsheeteditor/mobile/locale/fr.json
+@@ -535,6 +535,7 @@
+   "SSE.Views.EditImage.textForward": "Déplacer vers l'avant",
+   "SSE.Views.EditImage.textFromLibrary": "Image de la bibliothèque",
+   "SSE.Views.EditImage.textFromURL": "Image à partir d'une URL",
++  "SSE.Views.EditImage.textFromStorage": "Image de stockage",
+   "SSE.Views.EditImage.textImageURL": "URL image",
+   "SSE.Views.EditImage.textLinkSettings": "Paramètres de lien",
+   "SSE.Views.EditImage.textRemove": "Supprimer l'image",
+diff --git a/apps/spreadsheeteditor/mobile/resources/css/app-ios.css b/apps/spreadsheeteditor/mobile/resources/css/app-ios.css
+index 48e497a..49879d1 100644
+--- a/apps/spreadsheeteditor/mobile/resources/css/app-ios.css
++++ b/apps/spreadsheeteditor/mobile/resources/css/app-ios.css
+@@ -7177,6 +7177,11 @@ i.icon.icon-image-library {
+   height: 22px;
+   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20xmlns%3Axlink%3D%22http%3A%2F%2Fwww.w3.org%2F1999%2Fxlink%22%20viewBox%3D%220%200%2022%2022%22%3E%3Cdefs%3E%3Cstyle%3E.cls-1%7Bisolation%3Aisolate%3B%7D.cls-2%7Bopacity%3A0.2%3B%7D.cls-3%7Bfill%3A%23fff%3B%7D.cls-10%2C.cls-11%2C.cls-4%2C.cls-6%2C.cls-7%2C.cls-8%2C.cls-9%7Bmix-blend-mode%3Amultiply%3B%7D.cls-4%7Bfill%3Aurl(%23grad_8)%3B%7D.cls-5%7Bfill%3Aurl(%23grad_10)%3B%7D.cls-6%7Bfill%3Aurl(%23grad_12)%3B%7D.cls-7%7Bfill%3Aurl(%23grad_14)%3B%7D.cls-8%7Bfill%3Aurl(%23grad_79)%3B%7D.cls-9%7Bfill%3Aurl(%23grad_77)%3B%7D.cls-10%7Bfill%3Aurl(%23grad_75)%3B%7D.cls-11%7Bfill%3Aurl(%23grad_81)%3B%7D%3C%2Fstyle%3E%3ClinearGradient%20id%3D%22grad_8%22%20x1%3D%2211.08%22%20y1%3D%2210.26%22%20x2%3D%2211.08%22%20y2%3D%221.26%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23f3e916%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23f89d34%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_10%22%20x1%3D%2211.08%22%20y1%3D%2220.44%22%20x2%3D%2211.08%22%20y2%3D%2211.88%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%235eb6e8%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23958cc3%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_12%22%20x1%3D%221.46%22%20y1%3D%2211.05%22%20x2%3D%2210.46%22%20y2%3D%2211.05%22%20gradientTransform%3D%22translate(17%205.09)%20rotate(90)%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23cc8dba%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23f86867%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_14%22%20x1%3D%2211.73%22%20y1%3D%2211.05%22%20x2%3D%2220.73%22%20y2%3D%2211.05%22%20gradientTransform%3D%22translate(27.28%20-5.18)%20rotate(90)%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%236ac07f%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23c5da3d%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_79%22%20x1%3D%2211.74%22%20y1%3D%2210.42%22%20x2%3D%2217.52%22%20y2%3D%224.63%22%20gradientTransform%3D%22translate(30.29%202.51)%20rotate(135)%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23c5da3d%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23f3e916%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_77%22%20x1%3D%224.7%22%20y1%3D%2217.49%22%20x2%3D%2210.48%22%20y2%3D%2211.71%22%20gradientTransform%3D%22translate(23.24%2019.65)%20rotate(135)%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%239595c3%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23cc8dba%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_75%22%20x1%3D%224.69%22%20y1%3D%224.64%22%20x2%3D%2210.47%22%20y2%3D%2210.42%22%20gradientTransform%3D%22translate(7.54%20-3.15)%20rotate(45)%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23f86867%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23f89d34%22%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%22grad_81%22%20x1%3D%2211.77%22%20y1%3D%2211.78%22%20x2%3D%2217.55%22%20y2%3D%2217.56%22%20gradientTransform%3D%22translate(14.63%20-6.05)%20rotate(45)%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%235ec0e8%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%236ac07f%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Ctitle%3Eicons_for_svg%3C%2Ftitle%3E%3Cg%20class%3D%22cls-1%22%3E%3Cg%20id%3D%22%D0%A1%D0%BB%D0%BE%D0%B9_1%22%20data-name%3D%22%D0%A1%D0%BB%D0%BE%D0%B9%201%22%3E%3Crect%20class%3D%22cls-2%22%20x%3D%220.09%22%20y%3D%220.01%22%20width%3D%2222%22%20height%3D%2222%22%20rx%3D%224%22%20ry%3D%224%22%2F%3E%3Crect%20class%3D%22cls-3%22%20x%3D%220.57%22%20y%3D%220.49%22%20width%3D%2221.04%22%20height%3D%2221.04%22%20rx%3D%223.6%22%20ry%3D%223.6%22%2F%3E%3Crect%20class%3D%22cls-4%22%20x%3D%228.33%22%20y%3D%221.26%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%2F%3E%3Crect%20class%3D%22cls-5%22%20x%3D%228.33%22%20y%3D%2211.76%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%2F%3E%3Crect%20class%3D%22cls-6%22%20x%3D%223.21%22%20y%3D%226.55%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%20transform%3D%22translate(-5.09%2017)%20rotate(-90)%22%2F%3E%3Crect%20class%3D%22cls-7%22%20x%3D%2213.48%22%20y%3D%226.55%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%20transform%3D%22translate(5.18%2027.28)%20rotate(-90)%22%2F%3E%3Crect%20class%3D%22cls-8%22%20x%3D%2211.87%22%20y%3D%223.03%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%20transform%3D%22translate(19.64%2023.19)%20rotate(-135)%22%2F%3E%3Crect%20class%3D%22cls-9%22%20x%3D%224.8%22%20y%3D%2210.14%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%20transform%3D%22translate(2.54%2030.33)%20rotate(-135)%22%2F%3E%3Crect%20class%3D%22cls-10%22%20x%3D%224.83%22%20y%3D%223.03%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%20transform%3D%22translate(-3.1%207.56)%20rotate(-45)%22%2F%3E%3Crect%20class%3D%22cls-11%22%20x%3D%2211.87%22%20y%3D%2210.14%22%20width%3D%225.5%22%20height%3D%229%22%20rx%3D%222.5%22%20ry%3D%222.5%22%20transform%3D%22translate(-6.07%2014.63)%20rotate(-45)%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+ }
++i.icon.icon-image-storage {
++  width: 22px;
++  height: 22px;
++  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='24' width='24'%3E%3Cpath d='M4 20q-.825 0-1.412-.587Q2 18.825 2 18V6q0-.825.588-1.412Q3.175 4 4 4h6l2 2h8q.825 0 1.413.588Q22 7.175 22 8H11.175l-2-2H4v12l2.4-8h17.1l-2.575 8.575q-.2.65-.737 1.038Q19.65 20 19 20Zm2.1-2H19l1.8-6H7.9Zm0 0 1.8-6-1.8 6ZM4 8V6v2Z'/%3E%3C/svg%3E");
++}
+ i.icon.icon-cell-wrap {
+   width: 22px;
+   height: 22px;
+-- 
+2.34.1
+
+
+From 08f7ffa27c207f5c6beb28d20c3c7dee2da2dedd Mon Sep 17 00:00:00 2001
+From: Nelson DINIS GONCALVES <ndinisgoncalves@grandlyon.com>
+Date: Tue, 30 Aug 2022 14:57:10 +0200
+Subject: [PATCH 3/4] Update french translation
+
+---
+ apps/documenteditor/main/locale/fr.json     | 2 +-
+ apps/presentationeditor/main/locale/fr.json | 2 +-
+ apps/spreadsheeteditor/main/locale/fr.json  | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/apps/documenteditor/main/locale/fr.json b/apps/documenteditor/main/locale/fr.json
+index fcb3e28..5319bee 100644
+--- a/apps/documenteditor/main/locale/fr.json
++++ b/apps/documenteditor/main/locale/fr.json
+@@ -169,7 +169,7 @@
+   "Common.UI.ExtendedColorDialog.textRGBErr": "La valeur saisie est incorrecte. <br>Entrez une valeur numérique de 0 à 255.",
+   "Common.UI.HSBColorPicker.textNoColor": "Pas de couleur",
+   "Common.UI.SearchDialog.textHighlight": "Surligner les résultats",
+-  "Common.UI.SearchDialog.textMatchCase": "Сas sensible",
++  "Common.UI.SearchDialog.textMatchCase": "Respecter la casse",
+   "Common.UI.SearchDialog.textReplaceDef": "Saisissez le texte de remplacement",
+   "Common.UI.SearchDialog.textSearchStart": "Entrez votre texte ici",
+   "Common.UI.SearchDialog.textTitle": "Rechercher et remplacer",
+diff --git a/apps/presentationeditor/main/locale/fr.json b/apps/presentationeditor/main/locale/fr.json
+index adb095f..03f0242 100644
+--- a/apps/presentationeditor/main/locale/fr.json
++++ b/apps/presentationeditor/main/locale/fr.json
+@@ -62,7 +62,7 @@
+   "Common.UI.ExtendedColorDialog.textRGBErr": "La valeur saisie est incorrecte. <br>Entrez une valeur numérique de 0 à 255.",
+   "Common.UI.HSBColorPicker.textNoColor": "Pas de couleur",
+   "Common.UI.SearchDialog.textHighlight": "Surligner les résultats",
+-  "Common.UI.SearchDialog.textMatchCase": "Сas sensible",
++  "Common.UI.SearchDialog.textMatchCase": "Respecter la casse",
+   "Common.UI.SearchDialog.textReplaceDef": "Saisissez le texte de remplacement",
+   "Common.UI.SearchDialog.textSearchStart": "Entrez votre texte ici",
+   "Common.UI.SearchDialog.textTitle": "Rechercher et remplacer",
+diff --git a/apps/spreadsheeteditor/main/locale/fr.json b/apps/spreadsheeteditor/main/locale/fr.json
+index e827270..ceeae0b 100644
+--- a/apps/spreadsheeteditor/main/locale/fr.json
++++ b/apps/spreadsheeteditor/main/locale/fr.json
+@@ -63,7 +63,7 @@
+   "Common.UI.ExtendedColorDialog.textRGBErr": "La valeur saisie est incorrecte. <br>Entrez une valeur numérique de 0 à 255.",
+   "Common.UI.HSBColorPicker.textNoColor": "Pas de couleur",
+   "Common.UI.SearchDialog.textHighlight": "Surligner les résultats",
+-  "Common.UI.SearchDialog.textMatchCase": "Сas sensible",
++  "Common.UI.SearchDialog.textMatchCase": "Respecter la casse",
+   "Common.UI.SearchDialog.textReplaceDef": "Saisissez le texte de remplacement",
+   "Common.UI.SearchDialog.textSearchStart": "Entrez votre texte ici",
+   "Common.UI.SearchDialog.textTitle": "Rechercher et remplacer",
+-- 
+2.34.1
+
+
+From 1b8db683ac843baee573eda2e214acda1c70e1cf Mon Sep 17 00:00:00 2001
+From: Nelson DINIS GONCALVES <ndinisgoncalves@grandlyon.com>
+Date: Fri, 2 Sep 2022 14:06:37 +0200
+Subject: [PATCH 4/4] Don't show "Picture from Storage" if not available
+
+---
+ .../mobile/app/controller/add/AddImage.js         | 15 +++++++++++----
+ .../mobile/app/controller/edit/EditImage.js       | 13 +++++++++++--
+ .../mobile/app/controller/add/AddImage.js         | 15 +++++++++++----
+ .../mobile/app/controller/edit/EditImage.js       | 12 ++++++++++--
+ .../mobile/app/controller/add/AddOther.js         | 13 +++++++++----
+ .../mobile/app/controller/edit/EditImage.js       | 10 ++++++++--
+ 6 files changed, 60 insertions(+), 18 deletions(-)
+
+diff --git a/apps/documenteditor/mobile/app/controller/add/AddImage.js b/apps/documenteditor/mobile/app/controller/add/AddImage.js
+index e1f8fc3..91d8623 100644
+--- a/apps/documenteditor/mobile/app/controller/add/AddImage.js
++++ b/apps/documenteditor/mobile/app/controller/add/AddImage.js
+@@ -60,6 +60,8 @@ define([
+                 'AddImage'
+             ],
+ 
++            canRequestInsertImage: false,
++
+             initialize: function () {
+                 Common.NotificationCenter.on('addcontainer:show', _.bind(this.initEvents, this));
+ 
+@@ -78,6 +80,13 @@ define([
+                 this.api = api;
+             },
+ 
++            setMode: function (mode) {
++                // This should use the mode object but doesn't because canRequestInsertImage is not available in that object
++                // To make it so, Main.js would need to be patched. Since web-apps.patch already changes that file, this causes
++                // add-image-from-storage.patch to fail.
++                this.canRequestInsertImage = DE.getController("Main").editorConfig.canRequestInsertImage;
++            },
++
+             onLaunch: function () {
+                 this.createView('AddImage').render();
+             },
+@@ -86,8 +95,7 @@ define([
+                 var me = this;
+                 $('#add-image-file').single('click', _.bind(me.onInsertByFile, me));
+ 
+-                var canRequestInsertImage = true; //TODO Get the appOptions
+-                if(canRequestInsertImage) {
++                if(me.canRequestInsertImage) {
+                     $('#add-image-storage').single('click', _.bind(me.onInsertFromStorage, me));
+                 } else {
+                     $('#add-image-storage').hide();
+@@ -107,8 +115,7 @@ define([
+                 var me = this;
+ 
+                 // console.debug("add:openImageFromStorage", type);
+-                var canRequestInsertImage = true;
+-                if (canRequestInsertImage) {
++                if (me.canRequestInsertImage) {
+                     Common.Gateway.requestInsertImage(type);
+                 }
+             },
+diff --git a/apps/documenteditor/mobile/app/controller/edit/EditImage.js b/apps/documenteditor/mobile/app/controller/edit/EditImage.js
+index 9bd1df6..93246e2 100644
+--- a/apps/documenteditor/mobile/app/controller/edit/EditImage.js
++++ b/apps/documenteditor/mobile/app/controller/edit/EditImage.js
+@@ -91,6 +91,8 @@ define([
+                 'EditImage'
+             ],
+ 
++            canRequestInsertImage: false,
++
+             initialize: function () {
+                 Common.NotificationCenter.on('editcontainer:show', _.bind(this.initEvents, this));
+ 
+@@ -110,6 +112,13 @@ define([
+                 me.api.asc_registerCallback('asc_onFocusObject', _.bind(me.onApiFocusObject, me));
+             },
+ 
++            setMode: function (mode) {
++                // This should use the mode object but doesn't because canRequestInsertImage is not available in that object
++                // To make it so, Main.js would need to be patched. Since web-apps.patch already changes that file, this causes
++                // add-image-from-storage.patch to fail.
++                this.canRequestInsertImage = DE.getController("Main").editorConfig.canRequestInsertImage;
++            },
++
+             onLaunch: function () {
+                 this.createView('EditImage').render();
+             },
+@@ -156,8 +165,8 @@ define([
+ 
+                 $('#edit-image-file').single('click',                       _.bind(me.onReplaceByFile, me));
+                 $('.edit-image-url-link .button, .edit-image-url-link .list-button').single('click', _.bind(me.onReplaceByUrl, me));
+-                var canRequestInsertImage = true; //TODO Get the appOptions
+-                if(canRequestInsertImage) {
++
++                if(me.canRequestInsertImage) {
+                     $('#edit-image-storage').single('click', _.bind(me.onInsertFromStorage, me));
+                 } else {
+                     $('#add-image-storage').hide();
+diff --git a/apps/presentationeditor/mobile/app/controller/add/AddImage.js b/apps/presentationeditor/mobile/app/controller/add/AddImage.js
+index fd2f91c..55444f1 100644
+--- a/apps/presentationeditor/mobile/app/controller/add/AddImage.js
++++ b/apps/presentationeditor/mobile/app/controller/add/AddImage.js
+@@ -57,6 +57,8 @@ define([
+                 'AddImage'
+             ],
+ 
++            canRequestInsertImage: false,
++
+             initialize: function () {
+                 Common.NotificationCenter.on('addcontainer:show', _.bind(this.initEvents, this));
+ 
+@@ -75,6 +77,13 @@ define([
+                 this.api = api;
+             },
+ 
++            setMode: function (mode) {
++                // This should use the mode object but doesn't because canRequestInsertImage is not available in that object
++                // To make it so, Main.js would need to be patched. Since web-apps.patch already changes that file, this causes
++                // add-image-from-storage.patch to fail.
++                this.canRequestInsertImage = PE.getController("Main").editorConfig.canRequestInsertImage;
++            },
++
+             onLaunch: function () {
+                 this.createView('AddImage').render();
+             },
+@@ -83,8 +92,7 @@ define([
+                 var me = this;
+                 $('#add-image-file').single('click', _.bind(me.onInsertByFile, me));
+ 
+-                var canRequestInsertImage = true; //TODO Get the appOptions
+-                if(canRequestInsertImage) {
++                if(me.canRequestInsertImage) {
+                     $('#add-image-storage').single('click', _.bind(me.onInsertFromStorage, me));
+                 } else {
+                     $('#add-image-storage').hide();
+@@ -104,8 +112,7 @@ define([
+                 var me = this;
+ 
+                 // console.log("openImageFromStorage", type);
+-                var canRequestInsertImage = true;
+-                if (canRequestInsertImage) {
++                if (me.canRequestInsertImage) {
+                     Common.Gateway.requestInsertImage(type);
+                 }
+             },
+diff --git a/apps/presentationeditor/mobile/app/controller/edit/EditImage.js b/apps/presentationeditor/mobile/app/controller/edit/EditImage.js
+index 91cd7f6..3c76e14 100644
+--- a/apps/presentationeditor/mobile/app/controller/edit/EditImage.js
++++ b/apps/presentationeditor/mobile/app/controller/edit/EditImage.js
+@@ -62,6 +62,8 @@ define([
+                 'EditImage'
+             ],
+ 
++            canRequestInsertImage: false,
++
+             initialize: function () {
+                 Common.NotificationCenter.on('editcontainer:show', _.bind(this.initEvents, this));
+ 
+@@ -74,6 +76,13 @@ define([
+                 });
+             },
+ 
++            setMode: function (mode) {
++                // This should use the mode object but doesn't because canRequestInsertImage is not available in that object
++                // To make it so, Main.js would need to be patched. Since web-apps.patch already changes that file, this causes
++                // add-image-from-storage.patch to fail.
++                this.canRequestInsertImage = PE.getController("Main").editorConfig.canRequestInsertImage;
++            },
++
+             setApi: function (api) {
+                 var me = this;
+                 me.api = api;
+@@ -121,8 +130,7 @@ define([
+                 $('#edit-image-file').single('click',                       _.bind(me.onReplaceByFile, me));
+                 $('.edit-image-url-link .button, .edit-image-url-link .list-button').single('click', _.bind(me.onReplaceByUrl, me));
+ 
+-                var canRequestInsertImage = true; //TODO Get the appOptions
+-                if(canRequestInsertImage) {
++                if(me.canRequestInsertImage) {
+                     $('#edit-image-storage').single('click', _.bind(me.onInsertFromStorage, me));
+                 } else {
+                     $('#edit-image-storage').hide();
+diff --git a/apps/spreadsheeteditor/mobile/app/controller/add/AddOther.js b/apps/spreadsheeteditor/mobile/app/controller/add/AddOther.js
+index e8b8d57..7601ed7 100644
+--- a/apps/spreadsheeteditor/mobile/app/controller/add/AddOther.js
++++ b/apps/spreadsheeteditor/mobile/app/controller/add/AddOther.js
+@@ -53,6 +53,8 @@ define([
+                 'AddOther'
+             ],
+ 
++            canRequestInsertImage: false,
++
+             initialize: function () {
+                 Common.NotificationCenter.on('addcontainer:show', _.bind(this.initEvents, this));
+ 
+@@ -83,6 +85,11 @@ define([
+             setMode: function (mode) {
+                 this.view = this.getView('AddOther');
+                 this.view.canViewComments = mode.canViewComments;
++
++                // This should use the mode object but doesn't because canRequestInsertImage is not available in that object
++                // To make it so, Main.js would need to be patched. Since web-apps.patch already changes that file, this causes
++                // add-image-from-storage.patch to fail.
++                this.canRequestInsertImage = SSE.getController("Main").editorConfig.canRequestInsertImage;
+             },
+ 
+             onApiSelectionChanged: function(info) {
+@@ -112,8 +119,7 @@ define([
+                 var me = this;
+ 
+                 // console.log("openImageFromStorag", type);
+-                var canRequestInsertImage = true;
+-                if (canRequestInsertImage) {
++                if (me.canRequestInsertImage) {
+                     Common.Gateway.requestInsertImage(type);
+                 }
+             },
+@@ -169,8 +175,7 @@ define([
+                         me.onInsertImage({islocal:true});
+                     });
+ 
+-                    var canRequestInsertImage = true; //TODO Get the appOptions
+-                    if(canRequestInsertImage) {
++                    if(me.canRequestInsertImage) {
+                         $('#add-image-storage').single('click', _.bind(me.onInsertFromStorage, me));
+                     } else {
+                         $('#add-image-storage').hide();
+diff --git a/apps/spreadsheeteditor/mobile/app/controller/edit/EditImage.js b/apps/spreadsheeteditor/mobile/app/controller/edit/EditImage.js
+index 8ed9b2c..c143780 100644
+--- a/apps/spreadsheeteditor/mobile/app/controller/edit/EditImage.js
++++ b/apps/spreadsheeteditor/mobile/app/controller/edit/EditImage.js
+@@ -62,6 +62,8 @@ define([
+                 'EditImage'
+             ],
+ 
++            canRequestInsertImage: false,
++
+             initialize: function () {
+                 Common.NotificationCenter.on('editcontainer:show', _.bind(this.initEvents, this));
+ 
+@@ -84,6 +86,11 @@ define([
+ 
+             setMode: function (mode) {
+                 _isEdit = mode.isEdit;
++
++                // This should use the mode object but doesn't because canRequestInsertImage is not available in that object
++                // To make it so, Main.js would need to be patched. Since web-apps.patch already changes that file, this causes
++                // add-image-from-storage.patch to fail.
++                this.canRequestInsertImage = SSE.getController("Main").editorConfig.canRequestInsertImage;
+             },
+ 
+             // Called when clicking on Picture From Storage button
+@@ -149,8 +156,7 @@ define([
+             initReplacePage: function () {
+                 $('#edit-image-file').single('click', _.bind(this.onReplaceByFile, this));
+ 
+-                var canRequestInsertImage = true; //TODO Get the appOptions
+-                if(canRequestInsertImage) {
++                if(this.canRequestInsertImage) {
+                     $('#edit-image-storage').single('click', _.bind(this.onInsertFromStorage, this));
+                 } else {
+                     $('#edit-image-storage').hide();
+-- 
+2.34.1
+
