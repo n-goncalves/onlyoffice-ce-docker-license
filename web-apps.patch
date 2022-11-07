@@ -1,7 +1,7 @@
-From b99b3c2013521042374601e514d9e91c93372016 Mon Sep 17 00:00:00 2001
-From: Alexander Hofbauer <alex@derhofbauer.at>
-Date: Sat, 3 Jul 2021 08:29:29 +0200
-Subject: [PATCH] Revert "disable mobile editing"
+From cd0f0ee93288f43500d64da3f06cf797e6ec1785 Mon Sep 17 00:00:00 2001
+From: Nelson DINIS GONCALVES
+Date: Thu, 08 Sep 2022 10:57:54 +0200
+Subject: [PATCH] Revert "disable mobile editing" 
 
 partially brings back mobile editing, especially via:
 
@@ -12,41 +12,49 @@ partially brings back mobile editing, especially via:
   - dc46e1b97f6aa80eb3b5039c5a13ab10637115ac
   - 1ed80f9497222038da8845985786f5f0f4f5ad79
   - 2ab911a439c904a1e1da81283b77639a1f1aa6b1
+
+This improves on Alexander Hofbauer's patch by fixing
+presentation editor. 
+Fix Add/Edit Table on mobile in 7.X by using the new themes API
 ---
  .../mobile/app/controller/Main.js             |  9 +--
  .../mobile/app/controller/add/AddImage.js     |  7 ++
- .../mobile/app/controller/add/AddOther.js     | 63 +++++++++++++++++-
+ .../mobile/app/controller/add/AddOther.js     | 63 +++++++++++++++-
  .../mobile/app/controller/add/AddShape.js     |  7 ++
- .../mobile/app/controller/add/AddTable.js     | 26 +++++++-
- .../mobile/app/controller/edit/EditChart.js   | 32 +++++++++-
- .../app/controller/edit/EditParagraph.js      | 54 +++++++++++++++-
+ .../mobile/app/controller/add/AddTable.js     | 39 +++++++---
+ .../mobile/app/controller/edit/EditChart.js   | 32 ++++++++-
+ .../app/controller/edit/EditParagraph.js      | 54 +++++++++++++-
  .../mobile/app/controller/edit/EditShape.js   | 20 ++++++
- .../mobile/app/controller/edit/EditTable.js   | 25 ++++++++
- .../mobile/app/controller/edit/EditText.js    | 34 +++++++++-
+ .../mobile/app/controller/edit/EditTable.js   | 43 ++++++++++-
+ .../mobile/app/controller/edit/EditText.js    | 34 ++++++++-
  .../mobile/app/controller/Main.js             |  5 +-
  .../mobile/app/controller/add/AddImage.js     |  7 ++
- .../mobile/app/controller/add/AddLink.js      | 61 +++++++++++++++++-
+ .../mobile/app/controller/add/AddLink.js      | 61 +++++++++++++++-
  .../mobile/app/controller/add/AddShape.js     |  7 ++
- .../mobile/app/controller/add/AddSlide.js     | 34 +++++++++-
- .../mobile/app/controller/add/AddTable.js     | 31 ++++++++-
- .../mobile/app/controller/edit/EditChart.js   | 26 +++++++-
+ .../mobile/app/controller/add/AddSlide.js     | 34 ++++++++-
+ .../mobile/app/controller/add/AddTable.js     | 45 +++++++++++-
+ .../mobile/app/controller/edit/EditChart.js   | 26 ++++++-
  .../mobile/app/controller/edit/EditShape.js   | 16 +++++
- .../mobile/app/controller/edit/EditSlide.js   | 45 ++++++++++++-
- .../mobile/app/controller/edit/EditTable.js   | 23 +++++++
- .../mobile/app/controller/edit/EditText.js    | 42 +++++++++++-
+ .../mobile/app/controller/edit/EditSlide.js   | 45 +++++++++++-
+ .../mobile/app/controller/edit/EditTable.js   | 37 +++++++++-
+ .../mobile/app/controller/edit/EditText.js    | 42 ++++++++++-
+ .../mobile/app/template/AddTable.template     | 12 ++++
+ .../mobile/app/view/add/AddTable.js           | 72 +++++++++++++++++++
  .../mobile/app/controller/Main.js             |  5 +-
  .../mobile/app/controller/add/AddChart.js     |  4 ++
- .../mobile/app/controller/add/AddFunction.js  | 41 +++++++++++-
- .../mobile/app/controller/add/AddLink.js      | 47 +++++++++++++-
+ .../mobile/app/controller/add/AddFunction.js  | 41 ++++++++++-
+ .../mobile/app/controller/add/AddLink.js      | 47 +++++++++++-
  .../mobile/app/controller/add/AddOther.js     | 10 +++
  .../mobile/app/controller/add/AddShape.js     |  6 ++
- .../mobile/app/controller/edit/EditCell.js    | 45 ++++++++++++-
- .../mobile/app/controller/edit/EditChart.js   | 64 ++++++++++++++++++-
- .../mobile/app/controller/edit/EditShape.js   | 19 ++++++
- 30 files changed, 786 insertions(+), 29 deletions(-)
+ .../mobile/app/controller/edit/EditCell.js    | 45 +++++++++++-
+ .../mobile/app/controller/edit/EditChart.js   | 64 ++++++++++++++++-
+ .../mobile/app/controller/edit/EditShape.js   | 19 +++++
+ 32 files changed, 917 insertions(+), 41 deletions(-)
+ create mode 100644 apps/presentationeditor/mobile/app/template/AddTable.template
+ create mode 100644 apps/presentationeditor/mobile/app/view/add/AddTable.js
 
 diff --git a/apps/documenteditor/mobile/app/controller/Main.js b/apps/documenteditor/mobile/app/controller/Main.js
-index b53ab6578..661444a9c 100644
+index b53ab65..661444a 100644
 --- a/apps/documenteditor/mobile/app/controller/Main.js
 +++ b/apps/documenteditor/mobile/app/controller/Main.js
 @@ -289,7 +289,7 @@ define([
@@ -92,7 +100,7 @@ index b53ab6578..661444a9c 100644
 \ No newline at end of file
 +});
 diff --git a/apps/documenteditor/mobile/app/controller/add/AddImage.js b/apps/documenteditor/mobile/app/controller/add/AddImage.js
-index 16ab14528..0a5faaa2d 100644
+index 16ab145..0a5faaa 100644
 --- a/apps/documenteditor/mobile/app/controller/add/AddImage.js
 +++ b/apps/documenteditor/mobile/app/controller/add/AddImage.js
 @@ -98,6 +98,10 @@ define([
@@ -117,7 +125,7 @@ index 16ab14528..0a5faaa2d 100644
                              uiApp.alert(me.txtNotUrl, me.notcriticalErrorTitle);
                          }
 diff --git a/apps/documenteditor/mobile/app/controller/add/AddOther.js b/apps/documenteditor/mobile/app/controller/add/AddOther.js
-index 9dca563e3..ff5fc6bc8 100644
+index 9dca563..ff5fc6b 100644
 --- a/apps/documenteditor/mobile/app/controller/add/AddOther.js
 +++ b/apps/documenteditor/mobile/app/controller/add/AddOther.js
 @@ -238,7 +238,40 @@ define([
@@ -203,7 +211,7 @@ index 9dca563e3..ff5fc6bc8 100644
 \ No newline at end of file
 +});
 diff --git a/apps/documenteditor/mobile/app/controller/add/AddShape.js b/apps/documenteditor/mobile/app/controller/add/AddShape.js
-index 32047d3dd..c8345c7af 100644
+index 32047d3..c8345c7 100644
 --- a/apps/documenteditor/mobile/app/controller/add/AddShape.js
 +++ b/apps/documenteditor/mobile/app/controller/add/AddShape.js
 @@ -215,6 +215,13 @@ define([
@@ -221,49 +229,69 @@ index 32047d3dd..c8345c7af 100644
              },
  
 diff --git a/apps/documenteditor/mobile/app/controller/add/AddTable.js b/apps/documenteditor/mobile/app/controller/add/AddTable.js
-index fef864537..a9dd39cf6 100644
+index fef8645..73d0fec 100644
 --- a/apps/documenteditor/mobile/app/controller/add/AddTable.js
 +++ b/apps/documenteditor/mobile/app/controller/add/AddTable.js
-@@ -74,6 +74,8 @@ define([
+@@ -61,12 +61,6 @@ define([
+             initialize: function () {
+                 Common.NotificationCenter.on('addcontainer:show', _.bind(this.initEvents, this));
+ 
+-                this.addListeners({
+-                    'AddTable': {
+-                        'view:render' : this.onViewRender
+-                    }
+-                });
+-
+                 this._styles = [];
+                 this._initDefaultStyles = false;
+             },
+@@ -74,6 +68,10 @@ define([
              setApi: function (api) {
                  var me = this;
                  me.api = api;
 +
-+                me.api.asc_registerCallback('asc_onInitTableTemplates', _.bind(me.onApiInitTemplates, me));
++                me.api.asc_registerCallback('asc_onInitTableTemplates', _.bind(me.onInitTableTemplates, me));
++                me.api.asc_registerCallback('asc_onAddTableStylesPreview', _.bind(me.onAddTableStylesPreview, me));
++                me.api.asc_registerCallback('asc_onEndTableStylesPreview', _.bind(me.onEndTableStylesPreview, me));
              },
  
              onLaunch: function () {
-@@ -81,6 +83,12 @@ define([
-             },
- 
-             initEvents: function () {
-+                if (!this._initDefaultStyles) {
-+                    this._initDefaultStyles = true;
-+
-+                    this.api.asc_GetDefaultTableStyles();
-+                }
-+
+@@ -84,10 +82,6 @@ define([
                  $('#add-table li').single('click',  _.buffered(this.onStyleClick, 100, this));
              },
  
-@@ -159,10 +167,26 @@ define([
+-            onViewRender: function () {
+-                $('#add-table li').single('click',  _.buffered(this.onStyleClick, 100, this));
+-            },
+-
+             onStyleClick: function (e) {
+                 var me = this,
+                     $target = $(e.currentTarget),
+@@ -159,10 +153,33 @@ define([
                  return this._styles;
              },
  
 +            // API handlers
 +
-+            onApiInitTemplates: function(templates) {
-+                var me = this;
-+                if (this._styles.length < 1) {
-+                    _.each(templates, function(template) {
-+                        me._styles.push({
-+                            imageUrl    : template.asc_getImage(),
-+                            templateId  : template.asc_getId()
-+                        });
-+                    });
++            onInitTableTemplates: function(){
++                // console.log("add:onInitTableTemplates");
++                this.api.asc_generateTableStylesPreviews();
++            },
 +
-+                    this.getView('AddTable').render();
-+                }
++            onAddTableStylesPreview: function(templates){
++                // console.log("add:onAddTableStylesPreview", templates);
++                var me = this;
++                _.each(templates, function(template){
++                    me._styles.push({
++                        imageUrl    : template.asc_getImage(),
++                        templateId  : template.asc_getId(),
++                    });
++                });
++            },
++
++            onEndTableStylesPreview: function(){
++                // console.log("add:onEndTableStylesPreview");
++                this.getView('AddTable').render();
 +            },
 +
              textTableSize: 'Table Size',
@@ -276,7 +304,7 @@ index fef864537..a9dd39cf6 100644
 \ No newline at end of file
 +});
 diff --git a/apps/documenteditor/mobile/app/controller/edit/EditChart.js b/apps/documenteditor/mobile/app/controller/edit/EditChart.js
-index b2cc3d9cd..8b27b1c8c 100644
+index b2cc3d9..8b27b1c 100644
 --- a/apps/documenteditor/mobile/app/controller/edit/EditChart.js
 +++ b/apps/documenteditor/mobile/app/controller/edit/EditChart.js
 @@ -135,6 +135,7 @@ define([
@@ -348,7 +376,7 @@ index b2cc3d9cd..8b27b1c8c 100644
 \ No newline at end of file
 +});
 diff --git a/apps/documenteditor/mobile/app/controller/edit/EditParagraph.js b/apps/documenteditor/mobile/app/controller/edit/EditParagraph.js
-index 114601e6a..778d62bdd 100644
+index 114601e..778d62b 100644
 --- a/apps/documenteditor/mobile/app/controller/edit/EditParagraph.js
 +++ b/apps/documenteditor/mobile/app/controller/edit/EditParagraph.js
 @@ -75,6 +75,7 @@ define([
@@ -438,7 +466,7 @@ index 114601e6a..778d62bdd 100644
 \ No newline at end of file
 +});
 diff --git a/apps/documenteditor/mobile/app/controller/edit/EditShape.js b/apps/documenteditor/mobile/app/controller/edit/EditShape.js
-index 996c13543..76a4e68a1 100644
+index 996c135..76a4e68 100644
 --- a/apps/documenteditor/mobile/app/controller/edit/EditShape.js
 +++ b/apps/documenteditor/mobile/app/controller/edit/EditShape.js
 @@ -302,9 +302,29 @@ define([
@@ -472,20 +500,29 @@ index 996c13543..76a4e68a1 100644
  
              onWrapType: function (e) {
 diff --git a/apps/documenteditor/mobile/app/controller/edit/EditTable.js b/apps/documenteditor/mobile/app/controller/edit/EditTable.js
-index c94825acb..02cb7557d 100644
+index c94825a..4cabd04 100644
 --- a/apps/documenteditor/mobile/app/controller/edit/EditTable.js
 +++ b/apps/documenteditor/mobile/app/controller/edit/EditTable.js
-@@ -123,6 +123,9 @@ define([
+@@ -118,11 +118,18 @@ define([
+                     $('.dataview.table-styles .row div').single('click',    _.bind(me.onStyleClick, me));
+                     me.initSettings('#edit-table-style');
+                 });
++
++                this._styles = [];
+             },
+ 
              setApi: function (api) {
                  var me = this;
                  me.api = api;
 +
 +                me.api.asc_registerCallback('asc_onFocusObject',        _.bind(me.onApiFocusObject, me));
-+                me.api.asc_registerCallback('asc_onInitTableTemplates', _.bind(me.onApiInitTemplates, me));
++                me.api.asc_registerCallback('asc_onInitTableTemplates', _.bind(me.onInitTableTemplates, me));
++                me.api.asc_registerCallback('asc_onAddTableStylesPreview', _.bind(me.onAddTableStylesPreview, me));
++                me.api.asc_registerCallback('asc_onEndTableStylesPreview', _.bind(me.onEndTableStylesPreview, me));
              },
  
              onLaunch: function () {
-@@ -131,6 +134,15 @@ define([
+@@ -131,6 +138,15 @@ define([
  
              initEvents: function () {
                  var me = this;
@@ -501,28 +538,56 @@ index c94825acb..02cb7557d 100644
                  me.initSettings();
              },
  
-@@ -638,6 +650,19 @@ define([
+@@ -181,7 +197,7 @@ define([
+                         Common.Utils.addScrollIfNeed('.page[data-page=edit-table-wrap]', '.page[data-page=edit-table-wrap] .page-content');
+                     } else if (pageId == "#edit-table-style" || pageId == '#edit-table-border-color-view') {
+                         me._initStyleView();
+-                        
++
+                         if (pageId == '#edit-table-border-color-view') {
+                             Common.Utils.addScrollIfNeed('.page[data-page=edit-table-border-color]', '.page[data-page=edit-table-border-color] .page-content');
+                         } else {
+@@ -397,6 +413,10 @@ define([
+                 return _tableObject;
+             },
+ 
++            getStyles: function () {
++                return this._styles;
++            },
++
+             // Handlers
+ 
+             onWrapType: function (e) {
+@@ -638,6 +658,27 @@ define([
                  }
              },
  
-+            onApiInitTemplates: function(templates) {
-+                var styles = [];
++            onInitTableTemplates: function(){
++                // console.log("edit:onInitTableTemplates");
++                this.api.asc_generateTableStylesPreviews();
++            },
 +
++            onAddTableStylesPreview: function(templates){
++                // console.log("edit:onAddTableStylesPreview", templates);
++                var me = this;
 +                _.each(templates, function(template){
-+                    styles.push({
++                    me._styles.push({
 +                        imageUrl    : template.asc_getImage(),
-+                        templateId  : template.asc_getId()
++                        templateId  : template.asc_getId(),
 +                    });
 +                });
++            },
 +
-+                this.getView('EditTable').updateStyles(styles);
++            onEndTableStylesPreview: function(){
++                // console.log("edit:onEndTableStylesPreview");
++                this.getView('EditTable').updateStyles(this._styles);
 +            },
 +
              // Helpers
  
              _closeIfNeed: function () {
 diff --git a/apps/documenteditor/mobile/app/controller/edit/EditText.js b/apps/documenteditor/mobile/app/controller/edit/EditText.js
-index 08f0ba0af..5126050f1 100644
+index 08f0ba0..5126050 100644
 --- a/apps/documenteditor/mobile/app/controller/edit/EditText.js
 +++ b/apps/documenteditor/mobile/app/controller/edit/EditText.js
 @@ -78,6 +78,21 @@ define([
@@ -579,7 +644,7 @@ index 08f0ba0af..5126050f1 100644
 \ No newline at end of file
 +});
 diff --git a/apps/presentationeditor/mobile/app/controller/Main.js b/apps/presentationeditor/mobile/app/controller/Main.js
-index 012b4ce3d..c36e6396a 100644
+index 012b4ce..c36e639 100644
 --- a/apps/presentationeditor/mobile/app/controller/Main.js
 +++ b/apps/presentationeditor/mobile/app/controller/Main.js
 @@ -1190,6 +1190,7 @@ define([
@@ -607,7 +672,7 @@ index 012b4ce3d..c36e6396a 100644
 \ No newline at end of file
 +});
 diff --git a/apps/presentationeditor/mobile/app/controller/add/AddImage.js b/apps/presentationeditor/mobile/app/controller/add/AddImage.js
-index d95a8859a..617152918 100644
+index d95a885..6171529 100644
 --- a/apps/presentationeditor/mobile/app/controller/add/AddImage.js
 +++ b/apps/presentationeditor/mobile/app/controller/add/AddImage.js
 @@ -95,6 +95,10 @@ define([
@@ -632,7 +697,7 @@ index d95a8859a..617152918 100644
                              uiApp.alert(me.txtNotUrl, me.notcriticalErrorTitle);
                          }
 diff --git a/apps/presentationeditor/mobile/app/controller/add/AddLink.js b/apps/presentationeditor/mobile/app/controller/add/AddLink.js
-index ee2a12938..624df79c0 100644
+index ee2a129..624df79 100644
 --- a/apps/presentationeditor/mobile/app/controller/add/AddLink.js
 +++ b/apps/presentationeditor/mobile/app/controller/add/AddLink.js
 @@ -169,6 +169,65 @@ define([
@@ -709,7 +774,7 @@ index ee2a12938..624df79c0 100644
 \ No newline at end of file
 +});
 diff --git a/apps/presentationeditor/mobile/app/controller/add/AddShape.js b/apps/presentationeditor/mobile/app/controller/add/AddShape.js
-index be2ef1ecf..12c4c9f17 100644
+index be2ef1e..12c4c9f 100644
 --- a/apps/presentationeditor/mobile/app/controller/add/AddShape.js
 +++ b/apps/presentationeditor/mobile/app/controller/add/AddShape.js
 @@ -212,6 +212,13 @@ define([
@@ -727,7 +792,7 @@ index be2ef1ecf..12c4c9f17 100644
              },
  
 diff --git a/apps/presentationeditor/mobile/app/controller/add/AddSlide.js b/apps/presentationeditor/mobile/app/controller/add/AddSlide.js
-index 4ffccc101..4e5148d90 100644
+index 4ffccc1..4e5148d 100644
 --- a/apps/presentationeditor/mobile/app/controller/add/AddSlide.js
 +++ b/apps/presentationeditor/mobile/app/controller/add/AddSlide.js
 @@ -63,6 +63,7 @@ define([
@@ -787,22 +852,41 @@ index 4ffccc101..4e5148d90 100644
 \ No newline at end of file
 +});
 diff --git a/apps/presentationeditor/mobile/app/controller/add/AddTable.js b/apps/presentationeditor/mobile/app/controller/add/AddTable.js
-index 193e9ea59..7fa075c05 100644
+index 193e9ea..7078ed2 100644
 --- a/apps/presentationeditor/mobile/app/controller/add/AddTable.js
 +++ b/apps/presentationeditor/mobile/app/controller/add/AddTable.js
-@@ -57,15 +57,27 @@ define([
+@@ -43,6 +43,10 @@
+ 
+ define([
+     'core',
++    'presentationeditor/mobile/app/view/add/AddTable',
++    'jquery',
++    'underscore',
++    'backbone'
+ ], function (core) {
+     'use strict';
+ 
+@@ -55,6 +59,8 @@ define([
+             ],
+ 
              initialize: function () {
++                Common.NotificationCenter.on('addcontainer:show', _.bind(this.initEvents, this));
++
                  this._styles = [];
                  this._initDefaultStyles = false;
-+
-+                //TODO is this needed? Common.NotificationCenter.on('addcontainer:show', _.bind(this.initEvents, this));
              },
- 
+@@ -62,11 +68,26 @@ define([
              setApi: function (api) {
                  var me = this;
                  me.api = api;
 +
-+                me.api.asc_registerCallback('asc_onInitTableTemplates', _.bind(me.onApiInitTemplates, me));
++                me.api.asc_registerCallback('asc_onInitTableTemplates', _.bind(me.onInitTableTemplates, me));
++                me.api.asc_registerCallback('asc_onAddTableStylesPreview', _.bind(me.onAddTableStylesPreview, me));
++                me.api.asc_registerCallback('asc_onEndTableStylesPreview', _.bind(me.onEndTableStylesPreview, me));
++            },
++
++            onLaunch: function () {
++                this.createView('AddTable').render();
              },
  
              initEvents: function () {
@@ -810,34 +894,39 @@ index 193e9ea59..7fa075c05 100644
 +
 +                if (!me._initDefaultStyles) {
 +                    me._initDefaultStyles = true;
-+                    me._styles = [];
-+
-+                    me.api.asc_GetDefaultTableStyles && me.api.asc_GetDefaultTableStyles();
++                    me.api.asc_generateTableStylesPreviews();
 +                }
 +
                  $('.page[data-page="addother-insert-table"] li').single('click',  _.buffered(me.onStyleClick, 100, me));
++                $('#add-table li').single('click',  _.buffered(this.onStyleClick, 100, this));
              },
  
-@@ -142,10 +154,27 @@ define([
+             onStyleClick: function (e) {
+@@ -142,10 +163,32 @@ define([
  
              // API handlers
  
-+            onApiInitTemplates: function(templates){
-+                var me = this;
-+                if (this._styles.length < 1) {
-+                    _.each(templates, function(template) {
-+                        me._styles.push({
-+                            imageUrl    : template.asc_getImage(),
-+                            templateId  : template.asc_getId()
-+                        });
-+                    });
-+
-+                    this.getView('AddTable').render();
-+                }
-+
-+                Common.SharedSettings.set('tablestyles', this._styles);
-+                Common.NotificationCenter.trigger('tablestyles:load', this._styles);
++            onInitTableTemplates: function(){
++                // console.log("add:onInitTableTemplates");
++                this.api.asc_generateTableStylesPreviews();
 +            },
++
++            onAddTableStylesPreview: function(templates){
++                // console.log("add:onAddTableStylesPreview", templates);
++                var me = this;
++                _.each(templates, function(template){
++                    me._styles.push({
++                        imageUrl    : template.asc_getImage(),
++                        templateId  : template.asc_getId(),
++                    });
++                });
++            },
++
++            onEndTableStylesPreview: function(){
++                // console.log("add:onEndTableStylesPreview");
++                this.getView('AddTable').render();
++            },
++
 +
              textTableSize: 'Table Size',
              textColumns: 'Columns',
@@ -849,7 +938,7 @@ index 193e9ea59..7fa075c05 100644
 \ No newline at end of file
 +});
 diff --git a/apps/presentationeditor/mobile/app/controller/edit/EditChart.js b/apps/presentationeditor/mobile/app/controller/edit/EditChart.js
-index c80df4edc..0d5642e6c 100644
+index c80df4e..0d5642e 100644
 --- a/apps/presentationeditor/mobile/app/controller/edit/EditChart.js
 +++ b/apps/presentationeditor/mobile/app/controller/edit/EditChart.js
 @@ -106,6 +106,7 @@ define([
@@ -908,7 +997,7 @@ index c80df4edc..0d5642e6c 100644
 \ No newline at end of file
 +});
 diff --git a/apps/presentationeditor/mobile/app/controller/edit/EditShape.js b/apps/presentationeditor/mobile/app/controller/edit/EditShape.js
-index aa22af261..1c23e264d 100644
+index aa22af2..1c23e26 100644
 --- a/apps/presentationeditor/mobile/app/controller/edit/EditShape.js
 +++ b/apps/presentationeditor/mobile/app/controller/edit/EditShape.js
 @@ -235,6 +235,18 @@ define([
@@ -942,7 +1031,7 @@ index aa22af261..1c23e264d 100644
  
              onBorderSize: function (e) {
 diff --git a/apps/presentationeditor/mobile/app/controller/edit/EditSlide.js b/apps/presentationeditor/mobile/app/controller/edit/EditSlide.js
-index eaceadccd..0275e300d 100644
+index eaceadc..0275e30 100644
 --- a/apps/presentationeditor/mobile/app/controller/edit/EditSlide.js
 +++ b/apps/presentationeditor/mobile/app/controller/edit/EditSlide.js
 @@ -89,6 +89,7 @@ define([
@@ -1020,20 +1109,29 @@ index eaceadccd..0275e300d 100644
 \ No newline at end of file
 +});
 diff --git a/apps/presentationeditor/mobile/app/controller/edit/EditTable.js b/apps/presentationeditor/mobile/app/controller/edit/EditTable.js
-index 280165d27..4e44175a5 100644
+index 280165d..d6719da 100644
 --- a/apps/presentationeditor/mobile/app/controller/edit/EditTable.js
 +++ b/apps/presentationeditor/mobile/app/controller/edit/EditTable.js
-@@ -112,6 +112,9 @@ define([
+@@ -107,11 +107,18 @@ define([
+                     $('.dataview.table-styles .row div').single('click',    _.bind(me.onStyleClick, me));
+                     me.initSettings('#edit-table-style');
+                 });
++
++                this._styles = [];
+             },
+ 
              setApi: function (api) {
                  var me = this;
                  me.api = api;
 +
 +                me.api.asc_registerCallback('asc_onFocusObject',        _.bind(me.onApiFocusObject, me));
-+                me.api.asc_registerCallback('asc_onInitTableTemplates', _.bind(me.onApiInitTemplates, me));
++                me.api.asc_registerCallback('asc_onInitTableTemplates', _.bind(me.onInitTableTemplates, me));
++                me.api.asc_registerCallback('asc_onAddTableStylesPreview', _.bind(me.onAddTableStylesPreview, me));
++                me.api.asc_registerCallback('asc_onEndTableStylesPreview', _.bind(me.onEndTableStylesPreview, me));
              },
  
              onLaunch: function () {
-@@ -121,6 +124,13 @@ define([
+@@ -121,6 +128,13 @@ define([
              initEvents: function () {
                  var me = this;
  
@@ -1047,28 +1145,46 @@ index 280165d27..4e44175a5 100644
                  $('#table-options-margins input').single('change touchend',      _.buffered(me.onOptionMargin, 100, me));
                  $('#table-options-margins input').single('input',       _.bind(me.onOptionMarginChanging, me));
  
-@@ -538,6 +548,19 @@ define([
+@@ -519,6 +533,27 @@ define([
+                 }
+             },
+ 
++            onInitTableTemplates: function(){
++                // console.log("edit:onInitTableTemplates");
++                this.api.asc_generateTableStylesPreviews();
++            },
++
++            onAddTableStylesPreview: function(templates){
++                // console.log("edit:onAddTableStylesPreview", templates);
++                var me = this;
++                _.each(templates, function(template){
++                    me._styles.push({
++                        imageUrl    : template.asc_getImage(),
++                        templateId  : template.asc_getId(),
++                    });
++                });
++            },
++
++            onEndTableStylesPreview: function(){
++                // console.log("edit:onEndTableStylesPreview");
++                this.getView('EditTable').updateStyles(this._styles);
++            },
++
+             // Helpers
+ 
+             _closeIfNeed: function () {
+@@ -538,7 +573,7 @@ define([
                  });
  
                  return tableExist;
+-            }
 +            },
-+
-+            onApiInitTemplates: function(templates) {
-+                var styles = [];
-+
-+                _.each(templates, function(template){
-+                    styles.push({
-+                        imageUrl    : template.asc_getImage(),
-+                        templateId  : template.asc_getId()
-+                    });
-+                });
-+
-+                this.getView('EditTable').updateStyles(styles);
-             }
          }
      })(), PE.Controllers.EditTable || {}))
+ });
+\ No newline at end of file
 diff --git a/apps/presentationeditor/mobile/app/controller/edit/EditText.js b/apps/presentationeditor/mobile/app/controller/edit/EditText.js
-index 116758067..e40fde1ac 100644
+index 1167580..e40fde1 100644
 --- a/apps/presentationeditor/mobile/app/controller/edit/EditText.js
 +++ b/apps/presentationeditor/mobile/app/controller/edit/EditText.js
 @@ -80,6 +80,30 @@ define([
@@ -1132,8 +1248,106 @@ index 116758067..e40fde1ac 100644
 -});
 \ No newline at end of file
 +});
+diff --git a/apps/presentationeditor/mobile/app/template/AddTable.template b/apps/presentationeditor/mobile/app/template/AddTable.template
+new file mode 100644
+index 0000000..6939831
+--- /dev/null
++++ b/apps/presentationeditor/mobile/app/template/AddTable.template
+@@ -0,0 +1,12 @@
++<!-- Root view -->
++<div id="add-table-root">
++    <div class="page-content dataview table-styles">
++        <ul class="row">
++            <% _.each(styles, function(style) { %>
++            <li data-type="<%= style.templateId %>">
++                <img src="<%= style.imageUrl %>">
++            </li>
++            <% }); %>
++        </ul>
++    </div>
++</div>
+\ No newline at end of file
+diff --git a/apps/presentationeditor/mobile/app/view/add/AddTable.js b/apps/presentationeditor/mobile/app/view/add/AddTable.js
+new file mode 100644
+index 0000000..e723d07
+--- /dev/null
++++ b/apps/presentationeditor/mobile/app/view/add/AddTable.js
+@@ -0,0 +1,72 @@
++/**
++ *  AddTable.js
++ *  Presentation Editor
++ *
++ *  Created by Alexander Yuzhin on 10/17/16
++ *  Copyright (c) 2018 Ascensio System SIA. All rights reserved.
++ *
++ */
++
++ define([
++    'text!presentationeditor/mobile/app/template/AddTable.template',
++    'jquery',
++    'underscore',
++    'backbone'
++], function (addTemplate, $, _, Backbone) {
++    'use strict';
++
++    PE.Views.AddTable = Backbone.View.extend(_.extend((function() {
++        // private
++
++        return {
++            // el: '.view-main',
++
++            template: _.template(addTemplate),
++
++            events: {
++            },
++
++            initialize: function () {
++                Common.NotificationCenter.on('addcontainer:show', _.bind(this.initEvents, this));
++            },
++
++            initEvents: function () {
++                var me = this;
++
++                me.initControls();
++            },
++
++            // Render layout
++            render: function () {
++                this.layout = $('<div/>').append(this.template({
++                    android : Common.SharedSettings.get('android'),
++                    phone   : Common.SharedSettings.get('phone'),
++                    styles  : PE.getController('AddTable').getStyles()
++                }));
++
++                var $tableStyles = $('.container-add .table-styles');
++                if ($tableStyles) {
++                    $tableStyles.replaceWith(this.layout.find('#add-table-root').html());
++                }
++
++                this.fireEvent('view:render', this);
++
++                return this;
++            },
++
++            rootLayout: function () {
++                if (this.layout) {
++                    return this.layout
++                        .find('#add-table-root')
++                        .html();
++                }
++
++                return '';
++            },
++
++            initControls: function () {
++                //
++            }
++        }
++    })(), PE.Views.AddTable || {}))
++});
+\ No newline at end of file
 diff --git a/apps/spreadsheeteditor/mobile/app/controller/Main.js b/apps/spreadsheeteditor/mobile/app/controller/Main.js
-index 71f96d868..883eca8cd 100644
+index 71f96d8..883eca8 100644
 --- a/apps/spreadsheeteditor/mobile/app/controller/Main.js
 +++ b/apps/spreadsheeteditor/mobile/app/controller/Main.js
 @@ -1332,6 +1332,7 @@ define([
@@ -1161,7 +1375,7 @@ index 71f96d868..883eca8cd 100644
 \ No newline at end of file
 +});
 diff --git a/apps/spreadsheeteditor/mobile/app/controller/add/AddChart.js b/apps/spreadsheeteditor/mobile/app/controller/add/AddChart.js
-index bb91e2c39..58015d747 100644
+index bb91e2c..58015d7 100644
 --- a/apps/spreadsheeteditor/mobile/app/controller/add/AddChart.js
 +++ b/apps/spreadsheeteditor/mobile/app/controller/add/AddChart.js
 @@ -78,6 +78,10 @@ define([
@@ -1176,7 +1390,7 @@ index bb91e2c39..58015d747 100644
  
              txtDiagramTitle:    'Chart Title',
 diff --git a/apps/spreadsheeteditor/mobile/app/controller/add/AddFunction.js b/apps/spreadsheeteditor/mobile/app/controller/add/AddFunction.js
-index 2f8e89353..964438c17 100644
+index 2f8e893..964438c 100644
 --- a/apps/spreadsheeteditor/mobile/app/controller/add/AddFunction.js
 +++ b/apps/spreadsheeteditor/mobile/app/controller/add/AddFunction.js
 @@ -112,17 +112,52 @@ define([
@@ -1242,7 +1456,7 @@ index 2f8e89353..964438c17 100644
 \ No newline at end of file
 +});
 diff --git a/apps/spreadsheeteditor/mobile/app/controller/add/AddLink.js b/apps/spreadsheeteditor/mobile/app/controller/add/AddLink.js
-index de4821e92..100de77e8 100644
+index de4821e..100de77 100644
 --- a/apps/spreadsheeteditor/mobile/app/controller/add/AddLink.js
 +++ b/apps/spreadsheeteditor/mobile/app/controller/add/AddLink.js
 @@ -171,6 +171,51 @@ define([
@@ -1305,7 +1519,7 @@ index de4821e92..100de77e8 100644
 \ No newline at end of file
 +});
 diff --git a/apps/spreadsheeteditor/mobile/app/controller/add/AddOther.js b/apps/spreadsheeteditor/mobile/app/controller/add/AddOther.js
-index dd1096405..776d18f92 100644
+index dd10964..776d18f 100644
 --- a/apps/spreadsheeteditor/mobile/app/controller/add/AddOther.js
 +++ b/apps/spreadsheeteditor/mobile/app/controller/add/AddOther.js
 @@ -174,6 +174,10 @@ define([
@@ -1340,7 +1554,7 @@ index dd1096405..776d18f92 100644
  
              onError: function(id, level, errData) {
 diff --git a/apps/spreadsheeteditor/mobile/app/controller/add/AddShape.js b/apps/spreadsheeteditor/mobile/app/controller/add/AddShape.js
-index b7a1cbcf2..b3411de3b 100644
+index b7a1cbc..b3411de 100644
 --- a/apps/spreadsheeteditor/mobile/app/controller/add/AddShape.js
 +++ b/apps/spreadsheeteditor/mobile/app/controller/add/AddShape.js
 @@ -211,6 +211,12 @@ define([
@@ -1357,7 +1571,7 @@ index b7a1cbcf2..b3411de3b 100644
              },
  
 diff --git a/apps/spreadsheeteditor/mobile/app/controller/edit/EditCell.js b/apps/spreadsheeteditor/mobile/app/controller/edit/EditCell.js
-index ef9666471..d75035de8 100644
+index ef96664..d75035d 100644
 --- a/apps/spreadsheeteditor/mobile/app/controller/edit/EditCell.js
 +++ b/apps/spreadsheeteditor/mobile/app/controller/edit/EditCell.js
 @@ -85,8 +85,10 @@ define([
@@ -1445,7 +1659,7 @@ index ef9666471..d75035de8 100644
 \ No newline at end of file
 +});
 diff --git a/apps/spreadsheeteditor/mobile/app/controller/edit/EditChart.js b/apps/spreadsheeteditor/mobile/app/controller/edit/EditChart.js
-index 0bacfd0e2..5fa56e946 100644
+index 0bacfd0..5fa56e9 100644
 --- a/apps/spreadsheeteditor/mobile/app/controller/edit/EditChart.js
 +++ b/apps/spreadsheeteditor/mobile/app/controller/edit/EditChart.js
 @@ -107,7 +107,13 @@ define([
@@ -1550,7 +1764,7 @@ index 0bacfd0e2..5fa56e946 100644
 \ No newline at end of file
 +});
 diff --git a/apps/spreadsheeteditor/mobile/app/controller/edit/EditShape.js b/apps/spreadsheeteditor/mobile/app/controller/edit/EditShape.js
-index 83e225529..5f701a46d 100644
+index 83e2255..5f701a4 100644
 --- a/apps/spreadsheeteditor/mobile/app/controller/edit/EditShape.js
 +++ b/apps/spreadsheeteditor/mobile/app/controller/edit/EditShape.js
 @@ -242,9 +242,28 @@ define([
@@ -1583,5 +1797,5 @@ index 83e225529..5f701a46d 100644
  
              onBorderSize: function (e) {
 -- 
-2.32.0.rc2
+2.34.1
 
