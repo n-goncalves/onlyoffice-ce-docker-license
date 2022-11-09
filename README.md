@@ -1,7 +1,5 @@
 # Patched ONLYOFFICE Docs (Community Edition)
 
-[![Docker Image CI](https://github.com/aleho/onlyoffice-ce-docker-license/actions/workflows/docker-image.yml/badge.svg)](https://github.com/aleho/onlyoffice-ce-docker-license/actions/workflows/docker-image.yml)
-
 ## Notes
 
 Please don't ask for setup support. I cannot support all your different setups. Sorry.
@@ -22,6 +20,7 @@ OnlyOffice Docs server with mobile editing enabled in the Nextcloud apps for an
 unlimited amount of concurrent users.
 
 The patches provided in this repository only restores basic editing on mobile.
+It also adds a way to use "Picture from storage" on mobile.
 
 It can be integrated into e.g. Nextcloud or ownCloud like the official images.
 
@@ -130,3 +129,5 @@ services:
 
 This repo was heavily inspired by the works of
 [Zegorax/OnlyOffice-Unlimited](https://github.com/Zegorax/OnlyOffice-Unlimited).
+[aleho/onlyoffice-ce-docker-license](https://github.com/aleho/onlyoffice-ce-docker-license)
+[xbeeant/onlyoffice-ce-docker-license](https://github.com/xbeeant/onlyoffice-ce-docker-license)
