@@ -59,7 +59,9 @@ ARG oo_root
 COPY --from=build-stage /build/converter  ${oo_root}/server/FileConverter/converter
 COPY --from=build-stage /build/docservice ${oo_root}/server/DocService/docservice
 
-# Restore mobile editing using an old version of mobile editor
+# Restore mobile editing using an old version of mobile editor (add dependencies that were removed in desktop editor)
+COPY --from=build-stage /build/web-apps/vendor/jszip                                   ${oo_root}/web-apps/vendor/jszip
+COPY --from=build-stage /build/web-apps/vendor/jszip-utils                             ${oo_root}/web-apps/vendor/jszip-utils
 COPY --from=build-stage /build/web-apps/deploy/web-apps/apps/documenteditor/mobile     ${oo_root}/web-apps/apps/documenteditor/mobile
 COPY --from=build-stage /build/web-apps/deploy/web-apps/apps/presentationeditor/mobile ${oo_root}/web-apps/apps/presentationeditor/mobile
 COPY --from=build-stage /build/web-apps/deploy/web-apps/apps/spreadsheeteditor/mobile  ${oo_root}/web-apps/apps/spreadsheeteditor/mobile
