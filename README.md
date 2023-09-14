@@ -1,5 +1,10 @@
 # Patched ONLYOFFICE Docs (Community Edition)
 
+## Update 2023-09-14
+
+Starting with v7.3.0, Onlyoffice switched their websocket library from sockjs to socket.io. That means the older mobile editor is now incompatible with the new onlyoffice sdk. As a working mobile editor was the main point of this repository, the project has reached a deadend and most likely won't be updated.
+You should look at other onlyoffice patches/forks if you want to use Onlyoffice without the concurrent user and configurations limits. 
+
 ## Notes
 
 Please don't ask for setup support. I cannot support all your different setups. Sorry.
